@@ -197,13 +197,19 @@ class TextFromCSVTaskPanel:
         return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
 
     def accept(self):
+        """OK-Button: Export ausführen, TaskPanel aber geöffnet lassen.
+
+        Rückgabe False verhindert, dass FreeCAD den Dialog automatisch schließt.
+        """
         try:
             self.run_generation(preview=False)
         except Exception as e:
             App.Console.PrintError("Fehler: %s\n" % e)
             QtWidgets.QMessageBox.critical(self.form, "Fehler", str(e))
             return False
-        return True
+
+        # TaskPanel offen lassen, damit der Nutzer weitere Exporte ausführen kann
+        return False
 
     def reject(self):
         # Cancel = Preview zurücksetzen

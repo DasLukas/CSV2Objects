@@ -2,8 +2,6 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
-from . import CSV2ObjectsGui
-
 
 class CSV2ObjectsWorkbench(Gui.Workbench):
     """
@@ -15,18 +13,23 @@ class CSV2ObjectsWorkbench(Gui.Workbench):
     ToolTip = "Erzeuge massenhaft 3D-Objekte mit Text aus CSV-Dateien."
 
     def __init__(self):
-        icon_path = os.path.join(
-            os.path.dirname(__file__),
-            "resources",
-            "icons",
-            "CSV2Objects.svg"
-        )
-        if os.path.exists(icon_path):
-            self.Icon = icon_path
+        # Icon: zuerst SVG, dann PNG versuchen
+        # Basisverzeichnis über den Mod-Pfad ermitteln (CSV2Objects liegt unter Mod/CSV2Objects)
+        base_dir = os.path.join(App.getUserAppDataDir(), "Mod", "CSV2Objects")
+        icon_dir = os.path.join(base_dir, "resources", "icons")
+        svg_path = os.path.join(icon_dir, "CSV2Objects.svg")
+        png_path = os.path.join(icon_dir, "CSV2Objects.png")
+
+        if os.path.exists(svg_path):
+            self.Icon = svg_path
+        elif os.path.exists(png_path):
+            self.Icon = png_path
         else:
             self.Icon = ""
 
     def Initialize(self):
+        # CSV2Objects-GUI-Modul importieren (lokaler Import, um Initialisierungsprobleme zu vermeiden)
+        import CSV2ObjectsGui
         # Kommandos registrieren
         CSV2ObjectsGui.register_commands()
 
@@ -35,6 +38,13 @@ class CSV2ObjectsWorkbench(Gui.Workbench):
         # Toolbar und Menü hinzufügen
         self.appendToolbar("CSV2Objects", cmd_list)
         self.appendMenu("CSV2Objects", cmd_list)
+
+        # TaskPanel beim Aktivieren der Workbench automatisch anzeigen
+        try:
+            panel = CSV2ObjectsGui.TextFromCSVTaskPanel()
+            Gui.Control.showDialog(panel)
+        except Exception as e:
+            App.Console.PrintError("CSV2Objects: Fehler beim Öffnen des TaskPanels: %s\n" % e)
 
         App.Console.PrintMessage("CSV2ObjectsWorkbench: initialisiert.\n")
 
