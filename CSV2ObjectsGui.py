@@ -212,7 +212,10 @@ class TextFromCSVTaskPanel:
         return False
 
     def reject(self):
-        # Cancel = Preview zurücksetzen
+        """Cancel-Button: Preview zurücksetzen und TaskPanel schließen.
+
+        Rückgabe True erlaubt FreeCAD, den Dialog zu schließen.
+        """
         if self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -222,6 +225,8 @@ class TextFromCSVTaskPanel:
                         pass
             self.preview_objects = []
             self.doc.recompute()
+
+        # TaskPanel schließen
         return True
 
     # ---------- System-Fonts ----------
@@ -723,11 +728,29 @@ class TextFromCSVTaskPanel:
 
 class CSV2ObjectsCmd:
     def GetResources(self):
+        # Icon-Pfad für das Kommando (Toolbar/Menu)
+        base_dir = os.path.join(
+            App.getUserAppDataDir(),
+            "Mod",
+            "CSV2Objects",
+            "resources",
+            "icons",
+        )
+        svg_path = os.path.join(base_dir, "CSV2Objects.svg")
+        png_path = os.path.join(base_dir, "CSV2Objects.png")
+
+        pixmap = ""
+        if os.path.exists(svg_path):
+            pixmap = svg_path
+        elif os.path.exists(png_path):
+            pixmap = png_path
+
         return {
             "MenuText": "CSV2Objects",
             "ToolTip": (
                 "Erzeugt massenhaft 3D-Objekte mit Text aus CSV-Dateien."
             ),
+            "Pixmap": pixmap,
         }
 
     def IsActive(self):

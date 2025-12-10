@@ -39,13 +39,6 @@ class CSV2ObjectsWorkbench(Gui.Workbench):
         self.appendToolbar("CSV2Objects", cmd_list)
         self.appendMenu("CSV2Objects", cmd_list)
 
-        # TaskPanel beim Aktivieren der Workbench automatisch anzeigen
-        try:
-            panel = CSV2ObjectsGui.TextFromCSVTaskPanel()
-            Gui.Control.showDialog(panel)
-        except Exception as e:
-            App.Console.PrintError("CSV2Objects: Fehler beim Öffnen des TaskPanels: %s\n" % e)
-
         App.Console.PrintMessage("CSV2ObjectsWorkbench: initialisiert.\n")
 
     def GetClassName(self):
