@@ -197,25 +197,16 @@ class TextFromCSVTaskPanel:
         return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
 
     def accept(self):
-        """OK-Button: Export ausführen, TaskPanel aber geöffnet lassen.
-
-        Rückgabe False verhindert, dass FreeCAD den Dialog automatisch schließt.
-        """
+        """OK-Button: Export ausführen, TaskPanel aber geöffnet lassen."""
         try:
             self.run_generation(preview=False)
         except Exception as e:
             App.Console.PrintError("Fehler: %s\n" % e)
             QtWidgets.QMessageBox.critical(self.form, "Fehler", str(e))
-            return False
-
-        # TaskPanel offen lassen, damit der Nutzer weitere Exporte ausführen kann
-        return False
+            # keine Rückgabe, TaskPanel bleibt offen
 
     def reject(self):
-        """Cancel-Button: Preview zurücksetzen und TaskPanel schließen.
-
-        Rückgabe True erlaubt FreeCAD, den Dialog zu schließen.
-        """
+        """Cancel-Button / X: Preview zurücksetzen und TaskPanel schließen."""
         if self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -226,8 +217,11 @@ class TextFromCSVTaskPanel:
             self.preview_objects = []
             self.doc.recompute()
 
-        # TaskPanel schließen
-        return True
+        # TaskPanel über FreeCAD sauber schließen
+        try:
+            Gui.Control.closeDialog()
+        except Exception:
+            pass
 
     # ---------- System-Fonts ----------
 
@@ -757,6 +751,10 @@ class CSV2ObjectsCmd:
         return App.ActiveDocument is not None
 
     def Activated(self):
+        """Wird beim Klick auf das Toolbar-/Menü-Icon ausgeführt.
+
+        Öffnet einen neuen CSV2Objects-TaskPanel.
+        """
         panel = TextFromCSVTaskPanel()
         Gui.Control.showDialog(panel)
 
