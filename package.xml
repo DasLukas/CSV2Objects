@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package>
+  <name>CSV2Objects</name>
+  <description>
+    Erzeugt massenhaft 3D-Objekte mit Text aus CSV-Dateien auf Basis von Hilfslinien in Sketches.
+  </description>
+  <version>0.1.0</version>
+
+  <!-- Dein Name / Kontakt -->
+  <maintainer email="lukas@example.com">Lukas Waschul</maintainer>
+
+  <!-- Lizenz frei wählbar, z. B. MIT -->
+  <license>MIT</license>
+
+  <!-- Optional: später dein Git-Repo eintragen -->
+  <homepage>https://github.com/DEIN_GITHUB/CSV2Objects</homepage>
+
+  <!-- Icon relativ zum Paket-Wurzelverzeichnis -->
+  <icon>resources/icons/CSV2Objects.svg</icon>
+
+  <!-- Welche FreeCAD-Version mindestens -->
+  <freecad min="0.21"/>
+
+  <!-- Typ: Workbench -->
+  <type>workbench</type>
+
+  <!-- Kurze Schlagworte -->
+  <tag>csv</tag>
+  <tag>text</tag>
+  <tag>automation</tag>
+  <tag>batch</tag>
+
+</package>
