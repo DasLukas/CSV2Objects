@@ -147,6 +147,42 @@ class CSV2ObjectsTaskPanel:
         for name, path in sorted(self.system_fonts.items()):
             self.system_font_combo.addItem(name, path)
 
+        # Choose a sensible default system font per platform with fallbacks
+        try:
+            preferred = []
+            if sys.platform.startswith("win"):
+                preferred = ["arial", "segoe", "tahoma", "calibri"]
+            elif sys.platform == "darwin":
+                preferred = ["helvetica", "arial", "menlo", "sf", "san"]
+            else:
+                preferred = ["dejavusans", "liberation", "freesans", "noto", "ubuntu"]
+
+            chosen = False
+            # search for preferred substrings in the display name (case-insensitive)
+            for p in preferred:
+                for i in range(1, self.system_font_combo.count()):
+                    try:
+                        txt = self.system_font_combo.itemText(i).lower()
+                    except Exception:
+                        txt = ""
+                    if p in txt:
+                        self.system_font_combo.setCurrentIndex(i)
+                        chosen = True
+                        break
+                if chosen:
+                    break
+
+            # fallback: if no preferred found but there are fonts, pick the first
+            if not chosen and self.system_font_combo.count() > 1:
+                self.system_font_combo.setCurrentIndex(1)
+            # ensure the font path field is updated when we set the index programmatically
+            try:
+                self.on_system_font_changed(self.system_font_combo.currentIndex())
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         geo_layout.addWidget(QtWidgets.QLabel("System font:"), 0, 0)
         geo_layout.addWidget(self.system_font_combo, 0, 1, 1, 2)
 
@@ -157,6 +193,14 @@ class CSV2ObjectsTaskPanel:
         geo_layout.addWidget(QtWidgets.QLabel("TTF/OTF file:"), 1, 0)
         geo_layout.addWidget(self.font_path_edit, 1, 1)
         geo_layout.addWidget(self.font_browse_btn, 1, 2)
+
+        # Ensure font_path_edit is populated if a system font was selected above
+        try:
+            idx = self.system_font_combo.currentIndex()
+            if idx >= 0:
+                self.on_system_font_changed(idx)
+        except Exception:
+            pass
 
         # FONT_SCALE
         self.font_scale_spin = QtWidgets.QDoubleSpinBox()
@@ -505,6 +549,15 @@ class CSV2ObjectsTaskPanel:
         # Enable controls below CSV settings only if we have at least one row
         have_csv = bool(self.csv_rows and self.csv_headers)
         self.set_controls_enabled(have_csv)
+
+        # If no font path is set but a system font is selected, populate it now
+        try:
+            if not self.font_path_edit.text().strip():
+                idx = self.system_font_combo.currentIndex()
+                if idx >= 0:
+                    self.on_system_font_changed(idx)
+        except Exception:
+            pass
 
         for row in range(self.lines_table.rowCount()):
             combo = self.lines_table.cellWidget(row, 3)
