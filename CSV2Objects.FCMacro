@@ -56,6 +56,7 @@ class CSV2ObjectsTaskPanel:
 
         # Preview objects (ShapeStrings + Extrudes) of the live preview
         self.preview_objects = []
+        # (adoption handled on OK)
 
         # ---------- Main widget ----------
         self.form = QtWidgets.QWidget()
@@ -174,12 +175,7 @@ class CSV2ObjectsTaskPanel:
         geo_layout.addWidget(QtWidgets.QLabel("Target body (for fuse):"), 5, 0)
         geo_layout.addWidget(self.target_body_combo, 5, 1, 1, 2)
 
-        # Live preview checkbox
-        self.preview_check = QtWidgets.QCheckBox(
-            "Live preview of the first CSV row (while the dialog is open)"
-        )
-        self.preview_check.setChecked(True)
-        geo_layout.addWidget(self.preview_check, 6, 0, 1, 3)
+        # (moved) Live preview checkbox will be created near the navigator
 
         # Export format
         self.export_format_combo = QtWidgets.QComboBox()
@@ -210,8 +206,6 @@ class CSV2ObjectsTaskPanel:
         nav_h.addWidget(self.next_row_btn)
         nav_h.addStretch()
 
-        main_layout.addLayout(nav_h)
-
         # CSV data
         self.csv_headers = []
         self.csv_rows = []
@@ -231,7 +225,27 @@ class CSV2ObjectsTaskPanel:
         self.sketch_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
         self.font_scale_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
+        
+
+        # Create preview/adopt checkboxes above navigator
+        preview_h2 = QtWidgets.QHBoxLayout()
+        self.preview_check = QtWidgets.QCheckBox("Live Preview")
+        self.preview_check.setChecked(True)
+        self.adopt_check = QtWidgets.QCheckBox("Als Objekt übernehmen")
+
+        preview_h2.addStretch()
+        preview_h2.addWidget(self.preview_check)
+        preview_h2.addWidget(self.adopt_check)
+        preview_h2.addStretch()
+
+        main_layout.addLayout(preview_h2)
+
+        # Now add the navigator under the preview controls
+        main_layout.addLayout(nav_h)
+
+        # Connect preview/adopt signals
         self.preview_check.stateChanged.connect(self.maybe_trigger_preview)
+        self.adopt_check.stateChanged.connect(self.on_adopt_changed)
         # Navigator signals
         self.prev_row_btn.clicked.connect(self.on_prev_row)
         self.next_row_btn.clicked.connect(self.on_next_row)
@@ -246,12 +260,32 @@ class CSV2ObjectsTaskPanel:
         """OK button: run export but keep the task panel open."""
         try:
             self.run_generation(preview=False)
+            # If the adopt checkbox is checked, create persistent objects for
+            # the currently selected preview row inside a transaction so
+            # Undo/Redo is available after OK.
+            try:
+                if getattr(self, "adopt_check", None) and self.adopt_check.isChecked():
+                    # create persistent objects for preview_row inside a
+                    # transaction so Undo/Redo becomes available afterwards
+                    try:
+                        self.doc.openTransaction("Adopt preview")
+                        self._create_persistent_row(self.preview_row)
+                        self.doc.commitTransaction()
+                    except Exception as e:
+                        try:
+                            self.doc.abortTransaction()
+                        except Exception:
+                            pass
+                        App.Console.PrintError("Adopt error: %s\n" % e)
+            except Exception:
+                pass
         except Exception as e:
             App.Console.PrintError("Error: %s\n" % e)
             QtWidgets.QMessageBox.critical(self.form, "Error", str(e))
 
     def reject(self):
         """Cancel button / X: clear preview objects and close the task panel."""
+        # Remove any remaining preview objects
         if self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -495,6 +529,11 @@ class CSV2ObjectsTaskPanel:
         except Exception:
             self.preview_row = 0
         self.maybe_trigger_preview()
+
+    def on_adopt_changed(self, state):
+        # Do not create or commit objects when toggling the adopt checkbox.
+        # Adoption is performed only when the user confirms with OK.
+        return
 
     # ---------- Export helpers ----------
 
@@ -790,6 +829,8 @@ class CSV2ObjectsTaskPanel:
         if not preview and progress is not None:
             progress.setValue(len(rows_to_process))
 
+        
+
         if not preview:
             QtWidgets.QMessageBox.information(
                 self.form,
@@ -807,6 +848,113 @@ class CSV2ObjectsTaskPanel:
             except Exception:
                 pass
             self.doc.recompute()
+
+    def _create_persistent_row(self, row_idx):
+        """Create persistent objects for the CSV row index (0-based).
+        This is executed inside a transaction by the caller so Undo/Redo
+        will work after commit.
+        """
+        if not self.csv_rows or not self.csv_headers:
+            raise RuntimeError("CSV is not loaded.")
+
+        mappings = self.get_line_mappings()
+        if not mappings:
+            raise RuntimeError("No active guide line mappings defined.")
+
+        font_file = self.font_path_edit.text().strip()
+        if not font_file or not os.path.isfile(font_file):
+            raise RuntimeError("Font file is not set or not found.")
+
+        if self.sketch_combo.currentIndex() < 0:
+            raise RuntimeError("No sketch selected.")
+
+        sketch_name = self.sketch_combo.currentData()
+        sk = self.doc.getObject(sketch_name)
+        if sk is None:
+            raise RuntimeError("Sketch object not found.")
+
+        font_scale = float(self.font_scale_spin.value())
+        extrude_h = float(self.extrude_height_spin.value())
+
+        bbox_sk = sk.Shape.BoundBox
+        z_offset = float(bbox_sk.ZMin)
+
+        geos = sk.Geometry
+        y_vals = [m[1] for m in mappings]
+        if len(y_vals) >= 2:
+            y_top = max(y_vals)
+            y_bottom = min(y_vals)
+            vertical_height = abs(y_top - y_bottom)
+        else:
+            vertical_height = 10.0
+
+        text_size = vertical_height * font_scale
+
+        # validate index
+        try:
+            idx = int(row_idx)
+        except Exception:
+            idx = 0
+        if idx < 0 or idx >= len(self.csv_rows):
+            raise RuntimeError("Preview row index out of range")
+
+        row = self.csv_rows[idx]
+
+        created = []
+
+        def make_and_place_text_local(value, geo_index, y_line):
+            g = geos[geo_index]
+            x1 = g.StartPoint.x
+            x2 = g.EndPoint.x
+            x_center = 0.5 * (x1 + x2)
+
+            if not value:
+                return None
+
+            ss = Draft.makeShapeString(
+                String=value,
+                FontFile=font_file,
+                Size=text_size,
+                Tracking=0
+            )
+
+            ss.Placement.Base = App.Vector(x1, y_line, z_offset)
+            self.doc.recompute()
+
+            bbox = ss.Shape.BoundBox
+            width = float(bbox.XLength)
+            ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
+
+            ss.Placement.Base.x = x_center - width / 2.0
+            dy = y_line - ymid
+            ss.Placement.Base.y += dy
+
+            self.doc.recompute()
+            return ss
+
+        def extrude_text_local(ss_obj):
+            if ss_obj is None:
+                return None
+            ext = self.doc.addObject("Part::Extrusion", "TextExtrude")
+            ext.Base = ss_obj
+            ext.Dir = App.Vector(0, 0, extrude_h)
+            ext.Solid = True
+            ext.TaperAngle = 0
+            self.doc.recompute()
+            return ext
+
+        # create objects for the single row
+        for (geo_index, y_line, csv_col) in mappings:
+            if csv_col not in row:
+                continue
+            value = (row.get(csv_col) or "").strip()
+            ss = make_and_place_text_local(value, geo_index, y_line)
+            ext = extrude_text_local(ss)
+            if ext:
+                created.append(ss)
+                created.append(ext)
+
+        return created
 
 
 def run_csv2objects_macro():
