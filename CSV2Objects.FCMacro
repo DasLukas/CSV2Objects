@@ -280,6 +280,17 @@ class CSV2ObjectsTaskPanel:
             try:
                 if getattr(self, "adopt_check", None) and self.adopt_check.isChecked():
                     try:
+                        # Remove temporary preview objects first to avoid duplicates
+                        if self.preview_objects:
+                            for pobj in list(self.preview_objects):
+                                try:
+                                    if pobj in self.doc.Objects:
+                                        self.doc.removeObject(pobj.Name)
+                                except Exception:
+                                    pass
+                            self.preview_objects = []
+                            self.doc.recompute()
+
                         self.doc.openTransaction("Adopt preview")
                         self._create_persistent_row(self.preview_row)
                         self.doc.commitTransaction()
