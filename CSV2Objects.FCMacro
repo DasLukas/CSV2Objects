@@ -276,6 +276,9 @@ class CSV2ObjectsTaskPanel:
         self.next_row_btn.clicked.connect(self.on_next_row)
         self.row_spin.valueChanged.connect(self.on_row_changed)
 
+        # Initially disable all controls below CSV settings until a valid CSV is loaded
+        self.set_controls_enabled(False)
+
     # ---------- TaskPanel API ----------
 
     def getStandardButtons(self):
@@ -433,6 +436,35 @@ class CSV2ObjectsTaskPanel:
             self.font_path_edit.setText(fn)
             self.maybe_trigger_preview()
 
+    def set_controls_enabled(self, enabled: bool):
+        """Enable/disable UI elements below the CSV settings group.
+        Keep CSV selection controls enabled separately.
+        """
+        widgets = [
+            self.sketch_combo,
+            self.scan_lines_btn,
+            self.lines_table,
+            self.system_font_combo,
+            self.font_path_edit,
+            self.font_browse_btn,
+            self.font_scale_spin,
+            self.extrude_height_spin,
+            self.boolean_mode_combo,
+            self.target_body_combo,
+            self.preview_check,
+            self.adopt_check,
+            self.export_format_combo,
+            self.prev_row_btn,
+            self.next_row_btn,
+            self.row_spin,
+        ]
+
+        for w in widgets:
+            try:
+                w.setEnabled(bool(enabled))
+            except Exception:
+                pass
+
     def on_load_csv(self):
         path = self.csv_path_edit.text().strip()
         if not path or not os.path.isfile(path):
@@ -454,6 +486,10 @@ class CSV2ObjectsTaskPanel:
         # Update info label with columns and rows instead of popup
         cols = ", ".join(self.csv_headers) if self.csv_headers else "(none)"
         self.csv_info_label.setText(f"Columns: {cols}   Rows: {len(self.csv_rows)}")
+
+        # Enable controls below CSV settings only if we have at least one row
+        have_csv = bool(self.csv_rows and self.csv_headers)
+        self.set_controls_enabled(have_csv)
 
         for row in range(self.lines_table.rowCount()):
             combo = self.lines_table.cellWidget(row, 3)
