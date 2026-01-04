@@ -988,6 +988,51 @@ class CSV2ObjectsTaskPanel:
                 created.append(ss)
                 created.append(ext)
 
+        # If fuse mode selected, perform boolean fuse with the chosen target body
+        boolean_mode = self.boolean_mode_combo.currentIndex()
+        if boolean_mode == 1:
+            target_body_name = self.target_body_combo.currentData()
+            if not target_body_name:
+                raise RuntimeError("Fuse mode selected, but no target body chosen.")
+            orig_target_body = self.doc.getObject(target_body_name)
+            if orig_target_body is None:
+                raise RuntimeError("Target body not found.")
+
+
+            # create a copy of the target body and fuse all new extrudes into it
+            base_copy = self.doc.copyObject(orig_target_body, True)
+            current = base_copy
+
+            # collect extrude objects from created list robustly
+            extrudes = []
+            for obj in created:
+                try:
+                    if hasattr(obj, "Base") and hasattr(obj, "Dir"):
+                        extrudes.append(obj)
+                except Exception:
+                    pass
+
+            if not extrudes:
+                App.Console.PrintMessage("No extrude objects found to fuse.\n")
+                return created
+
+            for ext_obj in extrudes:
+                try:
+                    fuse = self.doc.addObject("Part::Fuse", "TextFuse")
+                    fuse.Base = current
+                    fuse.Tool = ext_obj
+                    self.doc.recompute()
+                    try:
+                        current.ViewObject.Visibility = False
+                    except Exception:
+                        pass
+                    current = fuse
+                except Exception as e:
+                    App.Console.PrintError("Fuse error: %s\n" % e)
+
+            # return the final fused object (and keep intermediates in document)
+            return [current]
+
         return created
 
 
