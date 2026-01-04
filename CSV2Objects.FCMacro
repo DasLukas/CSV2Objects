@@ -231,11 +231,25 @@ class CSV2ObjectsTaskPanel:
         preview_h2 = QtWidgets.QHBoxLayout()
         self.preview_check = QtWidgets.QCheckBox("Live Preview")
         self.preview_check.setChecked(True)
-        self.adopt_check = QtWidgets.QCheckBox("Als Objekt übernehmen")
+        self.adopt_check = QtWidgets.QCheckBox("Adopt preview as object")
+
+        # small info button with tooltip explaining adopt behavior
+        info_btn = QtWidgets.QToolButton()
+        try:
+            info_icon = self.form.style().standardIcon(QtWidgets.QStyle.SP_MessageBoxInformation)
+            info_btn.setIcon(info_icon)
+        except Exception:
+            info_btn.setText("i")
+        info_btn.setAutoRaise(True)
+        info_btn.setToolTip(
+            "When checked, the currently selected preview row will be created\n"
+            "as persistent editable objects when you press OK. No export will be performed."
+        )
 
         preview_h2.addStretch()
         preview_h2.addWidget(self.preview_check)
         preview_h2.addWidget(self.adopt_check)
+        preview_h2.addWidget(info_btn)
         preview_h2.addStretch()
 
         main_layout.addLayout(preview_h2)
@@ -259,26 +273,35 @@ class CSV2ObjectsTaskPanel:
     def accept(self):
         """OK button: run export but keep the task panel open."""
         try:
-            self.run_generation(preview=False)
-            # If the adopt checkbox is checked, create persistent objects for
-            # the currently selected preview row inside a transaction so
-            # Undo/Redo is available after OK.
+            # If adopt is checked, create persistent objects for the
+            # currently selected preview row and skip export. Otherwise
+            # run the normal export generation.
+            adopt_performed = False
             try:
                 if getattr(self, "adopt_check", None) and self.adopt_check.isChecked():
-                    # create persistent objects for preview_row inside a
-                    # transaction so Undo/Redo becomes available afterwards
                     try:
                         self.doc.openTransaction("Adopt preview")
                         self._create_persistent_row(self.preview_row)
                         self.doc.commitTransaction()
+                        self.doc.recompute()
+                        adopt_performed = True
                     except Exception as e:
                         try:
                             self.doc.abortTransaction()
                         except Exception:
                             pass
                         App.Console.PrintError("Adopt error: %s\n" % e)
+                else:
+                    self.run_generation(preview=False)
             except Exception:
                 pass
+
+            # Close the task panel when adoption was performed
+            if adopt_performed:
+                try:
+                    Gui.Control.closeDialog()
+                except Exception:
+                    pass
         except Exception as e:
             App.Console.PrintError("Error: %s\n" % e)
             QtWidgets.QMessageBox.critical(self.form, "Error", str(e))
