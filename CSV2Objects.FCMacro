@@ -117,6 +117,10 @@ class CSV2ObjectsTaskPanel:
         hl1.addWidget(self.sketch_combo)
         self.scan_lines_btn = QtWidgets.QPushButton("Scan guide lines")
         hl1.addWidget(self.scan_lines_btn)
+        try:
+            self.scan_lines_btn.setVisible(False)
+        except Exception:
+            pass
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
@@ -227,13 +231,24 @@ class CSV2ObjectsTaskPanel:
         self.populate_sketches()
         self.populate_bodies()
 
+        # If a default sketch exists, perform an initial scan
+        try:
+            if self.sketch_combo.count() > 0:
+                if self.sketch_combo.currentIndex() < 0:
+                    self.sketch_combo.setCurrentIndex(0)
+                self.on_scan_lines()
+        except Exception:
+            pass
+
         # Connect signals
         self.csv_browse_btn.clicked.connect(self.on_browse_csv)
         self.load_csv_btn.clicked.connect(self.on_load_csv)
         self.scan_lines_btn.clicked.connect(self.on_scan_lines)
         self.font_browse_btn.clicked.connect(self.on_browse_font)
         self.system_font_combo.currentIndexChanged.connect(self.on_system_font_changed)
-        self.sketch_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
+        # when the sketch selection changes, automatically scan guide lines
+        # and update the preview
+        self.sketch_combo.currentIndexChanged.connect(self.on_sketch_changed)
         self.font_scale_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
         
@@ -595,6 +610,18 @@ class CSV2ObjectsTaskPanel:
             self.run_generation(preview=True)
         except Exception as e:
             App.Console.PrintError("Preview error: %s\n" % e)
+
+    def on_sketch_changed(self, index):
+        # automatically scan guide lines for the newly selected sketch
+        try:
+            self.on_scan_lines()
+        except Exception:
+            pass
+        # update preview if applicable
+        try:
+            self.maybe_trigger_preview()
+        except Exception:
+            pass
 
     # ---------- Row navigator callbacks ----------
 
