@@ -37,14 +37,14 @@ class CSV2ObjectsTaskPanel:
         # Preview objects (ShapeStrings + Extrudes) of the live preview
         self.preview_objects = []
 
-        # ---------- Haupt-Widget ----------
+        # ---------- Main widget ----------
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("CSV text on guide lines")
 
         main_layout = QtWidgets.QVBoxLayout(self.form)
 
         # -------------------------------------------------
-        # CSV-Einstellungen
+        # CSV settings
         # -------------------------------------------------
         csv_group = QtWidgets.QGroupBox("CSV settings")
         csv_layout = QtWidgets.QGridLayout(csv_group)
@@ -104,7 +104,7 @@ class CSV2ObjectsTaskPanel:
         geo_group = QtWidgets.QGroupBox("Text, extrusion & boolean")
         geo_layout = QtWidgets.QGridLayout(geo_group)
 
-        # System-Fonts
+        # System fonts
         self.system_fonts = self._find_system_fonts()
         self.system_font_combo = QtWidgets.QComboBox()
         self.system_font_combo.addItem("– Choose system font –", "")
@@ -114,7 +114,7 @@ class CSV2ObjectsTaskPanel:
         geo_layout.addWidget(QtWidgets.QLabel("System font:"), 0, 0)
         geo_layout.addWidget(self.system_font_combo, 0, 1, 1, 2)
 
-        # Eigene Font-Datei
+        # Custom font file
         self.font_path_edit = QtWidgets.QLineEdit()
         self.font_browse_btn = QtWidgets.QPushButton("Choose font file…")
 
@@ -140,7 +140,7 @@ class CSV2ObjectsTaskPanel:
         geo_layout.addWidget(QtWidgets.QLabel("Extrusion height [mm]:"), 3, 0)
         geo_layout.addWidget(self.extrude_height_spin, 3, 1)
 
-        # Boolean-Modus (nur final)
+        # Boolean mode (final only)
         self.boolean_mode_combo = QtWidgets.QComboBox()
         self.boolean_mode_combo.addItems([
             "Generate text bodies only",
@@ -172,7 +172,7 @@ class CSV2ObjectsTaskPanel:
 
         main_layout.addWidget(geo_group)
 
-        # interne CSV-Daten
+        # CSV data
         self.csv_headers = []
         self.csv_rows = []
 
@@ -180,7 +180,7 @@ class CSV2ObjectsTaskPanel:
         self.populate_sketches()
         self.populate_bodies()
 
-        # Signale verbinden
+        # Connect signals
         self.csv_browse_btn.clicked.connect(self.on_browse_csv)
         self.load_csv_btn.clicked.connect(self.on_load_csv)
         self.scan_lines_btn.clicked.connect(self.on_scan_lines)
@@ -191,7 +191,7 @@ class CSV2ObjectsTaskPanel:
         self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.preview_check.stateChanged.connect(self.maybe_trigger_preview)
 
-    # ---------- TaskPanel-API ----------
+    # ---------- TaskPanel API ----------
 
     def getStandardButtons(self):
         return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -203,7 +203,6 @@ class CSV2ObjectsTaskPanel:
         except Exception as e:
             App.Console.PrintError("Error: %s\n" % e)
             QtWidgets.QMessageBox.critical(self.form, "Error", str(e))
-            # no return: keep the task panel open
 
     def reject(self):
         """Cancel button / X: clear preview objects and close the task panel."""
@@ -223,7 +222,7 @@ class CSV2ObjectsTaskPanel:
         except Exception:
             pass
 
-    # ---------- System-Fonts ----------
+    # ---------- System fonts ----------
 
     def _find_system_fonts(self):
         font_dirs = []
@@ -263,7 +262,7 @@ class CSV2ObjectsTaskPanel:
             self.font_path_edit.setText(path)
             self.maybe_trigger_preview()
 
-    # ---------- UI-Hilfsfunktionen ----------
+    # ---------- UI helpers ----------
 
     def populate_sketches(self):
         self.sketch_combo.clear()
@@ -384,7 +383,7 @@ class CSV2ObjectsTaskPanel:
                 continue
 
             item_geo = self.lines_table.item(r, 1)
-            item_y   = self.lines_table.item(r, 2)
+            item_y = self.lines_table.item(r, 2)
             col_combo = self.lines_table.cellWidget(r, 3)
 
             if not item_geo or not item_y or not col_combo:
@@ -420,7 +419,7 @@ class CSV2ObjectsTaskPanel:
         except Exception as e:
             App.Console.PrintError("Preview error: %s\n" % e)
 
-    # ---------- Export-Hilfen ----------
+    # ---------- Export helpers ----------
 
     def _get_export_base(self, export_ext):
         """Determine export base directory/name and clean up old exports with the selected extension."""
@@ -481,7 +480,7 @@ class CSV2ObjectsTaskPanel:
         full_path_short = os.path.join(dir_part, filename_short)
         return full_path_short
 
-    # ---------- Hauptlogik ----------
+    # ---------- Main logic ----------
 
     def run_generation(self, preview=False):
         if not self.csv_rows or not self.csv_headers:
@@ -503,8 +502,8 @@ class CSV2ObjectsTaskPanel:
         if sk is None:
             raise RuntimeError("Sketch object not found.")
 
-        font_scale   = float(self.font_scale_spin.value())
-        extrude_h    = float(self.extrude_height_spin.value())
+        font_scale = float(self.font_scale_spin.value())
+        extrude_h = float(self.extrude_height_spin.value())
         boolean_mode = self.boolean_mode_combo.currentIndex()
         target_body_name = self.target_body_combo.currentData()
         export_ext = self.export_format_combo.currentData() or "stl"
@@ -594,7 +593,7 @@ class CSV2ObjectsTaskPanel:
 
             bbox = ss.Shape.BoundBox
             width = float(bbox.XLength)
-            ymid  = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
+            ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
 
             ss.Placement.Base.x = x_center - width / 2.0
             dy = y_line - ymid
@@ -619,7 +618,7 @@ class CSV2ObjectsTaskPanel:
         else:
             rows_to_process = self.csv_rows
 
-        # Fortschrittsdialog nur im finalen Modus
+        # Progress dialog only in final mode
         progress = None
         if not preview:
             total = len(rows_to_process)
@@ -630,7 +629,7 @@ class CSV2ObjectsTaskPanel:
             progress.setMinimumDuration(0)
 
         for row_idx, row in enumerate(rows_to_process):
-            # Fortschritt aktualisieren
+            # Update progress
             if progress is not None:
                 progress.setValue(row_idx)
                 progress.setLabelText(
@@ -719,36 +718,17 @@ class CSV2ObjectsTaskPanel:
                 pass
             self.doc.recompute()
 
-class CSV2ObjectsCmd:
-    def GetResources(self):
-        # Icon path for the command (toolbar/menu)
-        base_dir = os.path.join(os.path.dirname(__file__), "resources", "icons")
-        svg_path = os.path.join(base_dir, "CSV2Objects.svg")
-        png_path = os.path.join(base_dir, "CSV2Objects.png")
 
-        pixmap = ""
-        if os.path.exists(svg_path):
-            pixmap = svg_path
-        elif os.path.exists(png_path):
-            pixmap = png_path
-
-        return {
-            "MenuText": "CSV2Objects",
-            "ToolTip": (
-                "Generate large batches of 3D objects with text from CSV files."
-            ),
-            "Pixmap": pixmap,
-        }
-
-    def IsActive(self):
-        return App.ActiveDocument is not None
-
-    def Activated(self):
-        """Runs when the toolbar/menu icon is clicked. Opens a new CSV2Objects task panel."""
+def run_csv2objects_macro():
+    if not App.GuiUp:
+        App.Console.PrintError("CSV2Objects macro requires the FreeCAD GUI.\n")
+        return
+    try:
         panel = CSV2ObjectsTaskPanel()
         Gui.Control.showDialog(panel)
+    except Exception as e:
+        App.Console.PrintError("CSV2Objects: failed to open dialog: %s\n" % e)
 
 
-def register_commands():
-    """Register CSV2Objects commands in FreeCAD (called from InitGui.py)."""
-    Gui.addCommand("CSV2Objects_Run", CSV2ObjectsCmd())
+# Run immediately when launched as a macro
+run_csv2objects_macro()
