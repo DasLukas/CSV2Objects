@@ -192,9 +192,31 @@ class CSV2ObjectsTaskPanel:
 
         main_layout.addWidget(geo_group)
 
+        # -------------------------------------------------
+        # CSV preview navigator (row selector)
+        # -------------------------------------------------
+        nav_h = QtWidgets.QHBoxLayout()
+        self.prev_row_btn = QtWidgets.QPushButton("◀")
+        self.next_row_btn = QtWidgets.QPushButton("▶")
+        self.row_spin = QtWidgets.QSpinBox()
+        self.row_spin.setMinimum(1)
+        self.row_spin.setMaximum(1)
+        self.row_spin.setValue(1)
+        self.row_spin.setEnabled(False)
+
+        nav_h.addStretch()
+        nav_h.addWidget(self.prev_row_btn)
+        nav_h.addWidget(self.row_spin)
+        nav_h.addWidget(self.next_row_btn)
+        nav_h.addStretch()
+
+        main_layout.addLayout(nav_h)
+
         # CSV data
         self.csv_headers = []
         self.csv_rows = []
+        # preview row index (0-based)
+        self.preview_row = 0
 
         # Populate UI initially
         self.populate_sketches()
@@ -210,6 +232,10 @@ class CSV2ObjectsTaskPanel:
         self.font_scale_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.preview_check.stateChanged.connect(self.maybe_trigger_preview)
+        # Navigator signals
+        self.prev_row_btn.clicked.connect(self.on_prev_row)
+        self.next_row_btn.clicked.connect(self.on_next_row)
+        self.row_spin.valueChanged.connect(self.on_row_changed)
 
     # ---------- TaskPanel API ----------
 
@@ -347,6 +373,13 @@ class CSV2ObjectsTaskPanel:
                 combo.clear()
                 combo.addItems(self.csv_headers)
 
+        # Update navigator spinbox to reflect loaded CSV
+        total_rows = len(self.csv_rows)
+        self.row_spin.setMaximum(max(1, total_rows))
+        self.row_spin.setValue(1)
+        self.row_spin.setEnabled(total_rows > 0)
+        self.preview_row = 0
+
         self.maybe_trigger_preview()
 
     def on_scan_lines(self):
@@ -438,6 +471,30 @@ class CSV2ObjectsTaskPanel:
             self.run_generation(preview=True)
         except Exception as e:
             App.Console.PrintError("Preview error: %s\n" % e)
+
+    # ---------- Row navigator callbacks ----------
+
+    def on_prev_row(self):
+        if not self.row_spin.isEnabled():
+            return
+        v = self.row_spin.value()
+        if v > 1:
+            self.row_spin.setValue(v - 1)
+
+    def on_next_row(self):
+        if not self.row_spin.isEnabled():
+            return
+        v = self.row_spin.value()
+        if v < self.row_spin.maximum():
+            self.row_spin.setValue(v + 1)
+
+    def on_row_changed(self, value):
+        # spinbox is 1-based, internal index is 0-based
+        try:
+            self.preview_row = max(0, min(value - 1, max(0, len(self.csv_rows) - 1)))
+        except Exception:
+            self.preview_row = 0
+        self.maybe_trigger_preview()
 
     # ---------- Export helpers ----------
 
@@ -634,7 +691,20 @@ class CSV2ObjectsTaskPanel:
             return ext
 
         if preview:
-            rows_to_process = self.csv_rows[:1]
+            # Use the selected preview row (self.preview_row, 0-based)
+            try:
+                idx = int(self.preview_row)
+            except Exception:
+                idx = 0
+                self.preview_row = 0
+            if idx < 0 or idx >= len(self.csv_rows):
+                idx = 0
+                self.preview_row = 0
+                try:
+                    self.row_spin.setValue(1)
+                except Exception:
+                    pass
+            rows_to_process = [self.csv_rows[idx]]
         else:
             rows_to_process = self.csv_rows
 
