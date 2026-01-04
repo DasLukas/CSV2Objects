@@ -1,3 +1,23 @@
+# -*- coding: utf-8 -*-
+"""
+CSV2Objects
+
+Macro CSV2Objects.FCMacro
+Author: Lukas Waschul
+Version: 0.1.0
+Date: 2025-01-04
+FreeCAD version: 0.21 or later
+License: MIT
+Website: https://github.com/DasLukas/CSV2Objects
+
+Description:
+    CSV2Objects is a macro that generates large batches of 3D text objects
+    from CSV files. It maps CSV columns to horizontal sketch guide lines,
+    creates ShapeStrings on the sketch plane, extrudes them, and optionally
+    fuses them with a target solid. It supports batch export to STL, 3MF,
+    and STEP, and restores the document state after a final export.
+"""
+
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
