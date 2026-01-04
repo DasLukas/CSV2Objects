@@ -15,44 +15,44 @@ except ImportError:
     from PySide import QtCore, QtGui, QtGui as QtWidgets
 
 
-MAX_PATH_LEN = 240  # konservative Obergrenze für Pfadlängen
+MAX_PATH_LEN = 240  # conservative upper bound for file path lengths
 
 
-class TextFromCSVTaskPanel:
+class CSV2ObjectsTaskPanel:
     """
-    TaskPanel:
-    - Text aus CSV auf Hilfslinien
-    - ShapeString + Extrusion
-    - Livepreview (erste CSV-Zeile)
-    - optionaler Boolean-Fuse mit Zielkörper (pro CSV-Zeile eigene Kopie)
-    - STL-Export in Unterordner neben der FCStd-Datei
-    - Dokumentzustand nach finalem Export wieder herstellen
+    Task panel to place CSV-driven text on sketch guide lines and export geometry.
+    - Text from CSV onto guide lines
+    - ShapeString + extrusion
+    - Live preview (first CSV row)
+    - Optional boolean fuse with a target body (per CSV row)
+    - STL/3MF/STEP export into a subfolder next to the FCStd file
+    - Restore the document state after a final export
     """
 
     def __init__(self):
         self.doc = App.ActiveDocument
         if self.doc is None:
-            raise RuntimeError("Kein aktives Dokument geöffnet.")
+            raise RuntimeError("No active document is open.")
 
-        # Preview-Objekte (ShapeStrings + Extrudes) der Livepreview
+        # Preview objects (ShapeStrings + Extrudes) of the live preview
         self.preview_objects = []
 
         # ---------- Haupt-Widget ----------
         self.form = QtWidgets.QWidget()
-        self.form.setWindowTitle("Text aus CSV auf Hilfslinien")
+        self.form.setWindowTitle("CSV text on guide lines")
 
         main_layout = QtWidgets.QVBoxLayout(self.form)
 
         # -------------------------------------------------
         # CSV-Einstellungen
         # -------------------------------------------------
-        csv_group = QtWidgets.QGroupBox("CSV-Einstellungen")
+        csv_group = QtWidgets.QGroupBox("CSV settings")
         csv_layout = QtWidgets.QGridLayout(csv_group)
 
         self.csv_path_edit = QtWidgets.QLineEdit()
-        self.csv_browse_btn = QtWidgets.QPushButton("CSV wählen…")
+        self.csv_browse_btn = QtWidgets.QPushButton("Browse CSV…")
 
-        csv_layout.addWidget(QtWidgets.QLabel("CSV-Datei:"), 0, 0)
+        csv_layout.addWidget(QtWidgets.QLabel("CSV file:"), 0, 0)
         csv_layout.addWidget(self.csv_path_edit, 0, 1)
         csv_layout.addWidget(self.csv_browse_btn, 0, 2)
 
@@ -68,29 +68,29 @@ class TextFromCSVTaskPanel:
         csv_layout.addWidget(QtWidgets.QLabel("Delimiter:"), 2, 0)
         csv_layout.addWidget(self.delimiter_edit, 2, 1)
 
-        self.load_csv_btn = QtWidgets.QPushButton("CSV einlesen")
+        self.load_csv_btn = QtWidgets.QPushButton("Load CSV")
         csv_layout.addWidget(self.load_csv_btn, 3, 0, 1, 3)
 
         main_layout.addWidget(csv_group)
 
         # -------------------------------------------------
-        # Sketch / Hilfslinien
+        # Sketch / guide lines
         # -------------------------------------------------
-        sketch_group = QtWidgets.QGroupBox("Sketch & Hilfslinien")
+        sketch_group = QtWidgets.QGroupBox("Sketch & guide lines")
         sketch_layout = QtWidgets.QVBoxLayout(sketch_group)
 
         hl1 = QtWidgets.QHBoxLayout()
         self.sketch_combo = QtWidgets.QComboBox()
         hl1.addWidget(QtWidgets.QLabel("Sketch:"))
         hl1.addWidget(self.sketch_combo)
-        self.scan_lines_btn = QtWidgets.QPushButton("Hilfslinien scannen")
+        self.scan_lines_btn = QtWidgets.QPushButton("Scan guide lines")
         hl1.addWidget(self.scan_lines_btn)
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
         self.lines_table.setColumnCount(4)
         self.lines_table.setHorizontalHeaderLabels(
-            ["Aktiv", "Geo-Index", "Y", "CSV-Spalte"]
+            ["Active", "Geo index", "Y", "CSV column"]
         )
         self.lines_table.horizontalHeader().setStretchLastSection(True)
         self.lines_table.setEditTriggers(QtWidgets.QAbstractItemView.AllEditTriggers)
@@ -99,26 +99,26 @@ class TextFromCSVTaskPanel:
         main_layout.addWidget(sketch_group)
 
         # -------------------------------------------------
-        # Text / Extrusion / Boolean / Livepreview
+        # Text / extrusion / boolean / live preview
         # -------------------------------------------------
-        geo_group = QtWidgets.QGroupBox("Text, Extrusion & Boolean")
+        geo_group = QtWidgets.QGroupBox("Text, extrusion & boolean")
         geo_layout = QtWidgets.QGridLayout(geo_group)
 
         # System-Fonts
         self.system_fonts = self._find_system_fonts()
         self.system_font_combo = QtWidgets.QComboBox()
-        self.system_font_combo.addItem("– System-Font wählen –", "")
+        self.system_font_combo.addItem("– Choose system font –", "")
         for name, path in sorted(self.system_fonts.items()):
             self.system_font_combo.addItem(name, path)
 
-        geo_layout.addWidget(QtWidgets.QLabel("System-Font:"), 0, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("System font:"), 0, 0)
         geo_layout.addWidget(self.system_font_combo, 0, 1, 1, 2)
 
         # Eigene Font-Datei
         self.font_path_edit = QtWidgets.QLineEdit()
-        self.font_browse_btn = QtWidgets.QPushButton("Font-Datei wählen…")
+        self.font_browse_btn = QtWidgets.QPushButton("Choose font file…")
 
-        geo_layout.addWidget(QtWidgets.QLabel("TTF/OTF-Datei:"), 1, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("TTF/OTF file:"), 1, 0)
         geo_layout.addWidget(self.font_path_edit, 1, 1)
         geo_layout.addWidget(self.font_browse_btn, 1, 2)
 
@@ -128,46 +128,46 @@ class TextFromCSVTaskPanel:
         self.font_scale_spin.setSingleStep(0.05)
         self.font_scale_spin.setValue(0.7)
 
-        geo_layout.addWidget(QtWidgets.QLabel("FONT_SCALE (rel. Höhe):"), 2, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("FONT_SCALE (relative height):"), 2, 0)
         geo_layout.addWidget(self.font_scale_spin, 2, 1)
 
-        # Extrusionshöhe
+        # Extrusion height
         self.extrude_height_spin = QtWidgets.QDoubleSpinBox()
         self.extrude_height_spin.setRange(0.01, 50.0)
         self.extrude_height_spin.setSingleStep(0.1)
         self.extrude_height_spin.setValue(1.0)
 
-        geo_layout.addWidget(QtWidgets.QLabel("Extrusionshöhe [mm]:"), 3, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Extrusion height [mm]:"), 3, 0)
         geo_layout.addWidget(self.extrude_height_spin, 3, 1)
 
         # Boolean-Modus (nur final)
         self.boolean_mode_combo = QtWidgets.QComboBox()
         self.boolean_mode_combo.addItems([
-            "Nur Textkörper erzeugen",
-            "Mit Zielkörper verschmelzen (Fuse)"
+            "Generate text bodies only",
+            "Fuse with target body"
         ])
 
-        geo_layout.addWidget(QtWidgets.QLabel("Modus (nur final):"), 4, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Mode (final only):"), 4, 0)
         geo_layout.addWidget(self.boolean_mode_combo, 4, 1)
 
         self.target_body_combo = QtWidgets.QComboBox()
-        geo_layout.addWidget(QtWidgets.QLabel("Zielkörper (für Fuse):"), 5, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Target body (for fuse):"), 5, 0)
         geo_layout.addWidget(self.target_body_combo, 5, 1, 1, 2)
 
-        # Livepreview-Checkbox
+        # Live preview checkbox
         self.preview_check = QtWidgets.QCheckBox(
-            "Livepreview der ersten CSV-Zeile (während der Dialog offen ist)"
+            "Live preview of the first CSV row (while the dialog is open)"
         )
         self.preview_check.setChecked(True)
         geo_layout.addWidget(self.preview_check, 6, 0, 1, 3)
 
-        # Exportformat
+        # Export format
         self.export_format_combo = QtWidgets.QComboBox()
         self.export_format_combo.addItem("STL", "stl")
         self.export_format_combo.addItem("3MF", "3mf")
         self.export_format_combo.addItem("STEP", "step")
 
-        geo_layout.addWidget(QtWidgets.QLabel("Exportformat:"), 7, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Export format:"), 7, 0)
         geo_layout.addWidget(self.export_format_combo, 7, 1)
 
         main_layout.addWidget(geo_group)
@@ -176,7 +176,7 @@ class TextFromCSVTaskPanel:
         self.csv_headers = []
         self.csv_rows = []
 
-        # UI initial füllen
+        # Populate UI initially
         self.populate_sketches()
         self.populate_bodies()
 
@@ -197,16 +197,16 @@ class TextFromCSVTaskPanel:
         return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
 
     def accept(self):
-        """OK-Button: Export ausführen, TaskPanel aber geöffnet lassen."""
+        """OK button: run export but keep the task panel open."""
         try:
             self.run_generation(preview=False)
         except Exception as e:
-            App.Console.PrintError("Fehler: %s\n" % e)
-            QtWidgets.QMessageBox.critical(self.form, "Fehler", str(e))
-            # keine Rückgabe, TaskPanel bleibt offen
+            App.Console.PrintError("Error: %s\n" % e)
+            QtWidgets.QMessageBox.critical(self.form, "Error", str(e))
+            # no return: keep the task panel open
 
     def reject(self):
-        """Cancel-Button / X: Preview zurücksetzen und TaskPanel schließen."""
+        """Cancel button / X: clear preview objects and close the task panel."""
         if self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -217,7 +217,7 @@ class TextFromCSVTaskPanel:
             self.preview_objects = []
             self.doc.recompute()
 
-        # TaskPanel über FreeCAD sauber schließen
+        # Close the task panel cleanly via FreeCAD
         try:
             Gui.Control.closeDialog()
         except Exception:
@@ -273,14 +273,14 @@ class TextFromCSVTaskPanel:
 
     def populate_bodies(self):
         self.target_body_combo.clear()
-        self.target_body_combo.addItem("<kein Zielkörper>", "")
+        self.target_body_combo.addItem("<no target body>", "")
         for obj in self.doc.Objects:
             if hasattr(obj, "Shape") and obj.Shape.Volume > 0:
                 self.target_body_combo.addItem(obj.Label, obj.Name)
 
     def on_browse_csv(self):
         fn, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self.form, "CSV wählen", "", "CSV-Dateien (*.csv);;Alle Dateien (*)"
+            self.form, "Choose CSV", "", "CSV files (*.csv);;All files (*)"
         )
         if fn:
             self.csv_path_edit.setText(fn)
@@ -289,9 +289,9 @@ class TextFromCSVTaskPanel:
     def on_browse_font(self):
         fn, _ = QtWidgets.QFileDialog.getOpenFileName(
             self.form,
-            "TTF/OTF-Font wählen",
+            "Choose TTF/OTF font",
             "",
-            "Font-Dateien (*.ttf *.otf);;Alle Dateien (*)"
+            "Font files (*.ttf *.otf);;All files (*)"
         )
         if fn:
             self.system_font_combo.setCurrentIndex(0)
@@ -301,7 +301,7 @@ class TextFromCSVTaskPanel:
     def on_load_csv(self):
         path = self.csv_path_edit.text().strip()
         if not path or not os.path.isfile(path):
-            QtWidgets.QMessageBox.warning(self.form, "Fehler", "CSV-Datei nicht gefunden.")
+            QtWidgets.QMessageBox.warning(self.form, "Error", "CSV file not found.")
             return
 
         enc = self.encoding_combo.currentText()
@@ -313,13 +313,13 @@ class TextFromCSVTaskPanel:
                 self.csv_rows = list(reader)
                 self.csv_headers = reader.fieldnames or []
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self.form, "CSV-Fehler", str(e))
+            QtWidgets.QMessageBox.critical(self.form, "CSV error", str(e))
             return
 
         QtWidgets.QMessageBox.information(
             self.form,
-            "CSV geladen",
-            "Spalten: %s\nZeilen: %d" % (self.csv_headers, len(self.csv_rows)),
+            "CSV loaded",
+            "Columns: %s\nRows: %d" % (self.csv_headers, len(self.csv_rows)),
         )
 
         for row in range(self.lines_table.rowCount()):
@@ -332,13 +332,13 @@ class TextFromCSVTaskPanel:
 
     def on_scan_lines(self):
         if self.sketch_combo.currentIndex() < 0:
-            QtWidgets.QMessageBox.warning(self.form, "Fehler", "Kein Sketch ausgewählt.")
+            QtWidgets.QMessageBox.warning(self.form, "Error", "No sketch selected.")
             return
 
         sketch_name = self.sketch_combo.currentData()
         sk = self.doc.getObject(sketch_name)
         if sk is None:
-            QtWidgets.QMessageBox.warning(self.form, "Fehler", "Sketch-Objekt nicht gefunden.")
+            QtWidgets.QMessageBox.warning(self.form, "Error", "Sketch object not found.")
             return
 
         geos = sk.Geometry
@@ -418,16 +418,15 @@ class TextFromCSVTaskPanel:
                 return
             self.run_generation(preview=True)
         except Exception as e:
-            App.Console.PrintError("Preview-Fehler: %s\n" % e)
+            App.Console.PrintError("Preview error: %s\n" % e)
 
     # ---------- Export-Hilfen ----------
 
     def _get_export_base(self, export_ext):
-        """Ermittelt Basisverzeichnis/-namen und räumt alte Exportdateien
-        mit der gewählten Erweiterung auf."""
+        """Determine export base directory/name and clean up old exports with the selected extension."""
         fc_path = self.doc.FileName
         if not fc_path:
-            raise RuntimeError("Dokument ist noch nicht gespeichert. Bitte zuerst speichern.")
+            raise RuntimeError("The document is not saved yet. Please save it first.")
 
         base_dir = os.path.dirname(fc_path)
         fc_name = os.path.splitext(os.path.basename(fc_path))[0]
@@ -437,7 +436,7 @@ class TextFromCSVTaskPanel:
         if not os.path.isdir(export_dir):
             os.makedirs(export_dir, exist_ok=True)
         else:
-            # alte Exportdateien mit gleicher Extension löschen
+            # Remove old exports with the same extension
             ext = "." + export_ext.lower()
             for f in os.listdir(export_dir):
                 if f.lower().endswith(ext):
@@ -486,23 +485,23 @@ class TextFromCSVTaskPanel:
 
     def run_generation(self, preview=False):
         if not self.csv_rows or not self.csv_headers:
-            raise RuntimeError("CSV ist nicht geladen.")
+            raise RuntimeError("CSV is not loaded.")
 
         mappings = self.get_line_mappings()
         if not mappings:
-            raise RuntimeError("Keine aktiven Hilfslinien-Mappings definiert.")
+            raise RuntimeError("No active guide line mappings defined.")
 
         font_file = self.font_path_edit.text().strip()
         if not font_file or not os.path.isfile(font_file):
-            raise RuntimeError("Font-Datei ist nicht gesetzt oder nicht gefunden.")
+            raise RuntimeError("Font file is not set or not found.")
 
         if self.sketch_combo.currentIndex() < 0:
-            raise RuntimeError("Kein Sketch ausgewählt.")
+            raise RuntimeError("No sketch selected.")
 
         sketch_name = self.sketch_combo.currentData()
         sk = self.doc.getObject(sketch_name)
         if sk is None:
-            raise RuntimeError("Sketch-Objekt nicht gefunden.")
+            raise RuntimeError("Sketch object not found.")
 
         font_scale   = float(self.font_scale_spin.value())
         extrude_h    = float(self.extrude_height_spin.value())
@@ -510,7 +509,7 @@ class TextFromCSVTaskPanel:
         target_body_name = self.target_body_combo.currentData()
         export_ext = self.export_format_combo.currentData() or "stl"
 
-        # vorhandene Preview-Objekte vor finalem Lauf entfernen
+        # Remove existing preview objects before the final run
         if not preview and self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -521,11 +520,11 @@ class TextFromCSVTaskPanel:
             self.preview_objects = []
             self.doc.recompute()
 
-        # Transaktion für finalen Lauf
+        # Transaction for final run
         if not preview:
-            self.doc.openTransaction("CSV_Text_Export")
+            self.doc.openTransaction("CSV2Objects_Export")
 
-        # Export-Basis
+        # Export base
         if not preview:
             export_dir, fc_name = self._get_export_base(export_ext)
             used_cols = []
@@ -535,14 +534,14 @@ class TextFromCSVTaskPanel:
         else:
             export_dir, fc_name, used_cols = None, None, None
 
-        # Original-Zielkörper (wird pro CSV-Zeile kopiert)
+        # Original target body (copied per CSV row)
         orig_target_body = None
         if not preview and boolean_mode == 1:
             if not target_body_name:
-                raise RuntimeError("Fuse-Modus gewählt, aber kein Zielkörper ausgewählt.")
+                raise RuntimeError("Fuse mode selected, but no target body chosen.")
             orig_target_body = self.doc.getObject(target_body_name)
             if orig_target_body is None:
-                raise RuntimeError("Zielkörper nicht gefunden.")
+                raise RuntimeError("Target body not found.")
 
         bbox_sk = sk.Shape.BoundBox
         z_offset = float(bbox_sk.ZMin)
@@ -563,7 +562,7 @@ class TextFromCSVTaskPanel:
             % (font_scale, text_size, preview)
         )
 
-        # alte Preview-Objekte im Preview-Modus löschen
+        # Remove old preview objects in preview mode
         if preview and self.preview_objects:
             for obj in list(self.preview_objects):
                 if obj in self.doc.Objects:
@@ -625,7 +624,7 @@ class TextFromCSVTaskPanel:
         if not preview:
             total = len(rows_to_process)
             progress = QtWidgets.QProgressDialog(
-                "Export läuft…", "Abbrechen", 0, total
+                "Exporting…", "Cancel", 0, total
             )
             progress.setWindowModality(QtCore.Qt.WindowModal)
             progress.setMinimumDuration(0)
@@ -635,14 +634,14 @@ class TextFromCSVTaskPanel:
             if progress is not None:
                 progress.setValue(row_idx)
                 progress.setLabelText(
-                    f"Exportiere {row_idx + 1} / {len(rows_to_process)}"
+                    f"Exporting {row_idx + 1} / {len(rows_to_process)}"
                 )
                 QtWidgets.QApplication.processEvents()
                 if progress.wasCanceled():
                     break
 
             App.Console.PrintMessage(
-                "CSV-Zeile %d (%s)\n" % (row_idx, "Preview" if preview else "Final")
+                "CSV row %d (%s)\n" % (row_idx, "Preview" if preview else "Final")
             )
             new_extrudes = []
 
@@ -657,7 +656,7 @@ class TextFromCSVTaskPanel:
                     if preview:
                         self.preview_objects.extend([ss, ext])
 
-            # Per-Zeile-Fuse: für jede CSV-Zeile eine eigene Kopie des Zielkörpers
+            # Per-row fuse: create a dedicated copy of the target body for each CSV row
             if not preview and boolean_mode == 1 and orig_target_body is not None:
                 base_copy = self.doc.copyObject(orig_target_body, True)
                 current = base_copy
@@ -685,34 +684,34 @@ class TextFromCSVTaskPanel:
                 try:
                     ext = export_ext.lower()
 
-                    # STL und 3MF über Mesh.export, STEP u.a. über ImportGui.export
+                    # STL and 3MF via Mesh.export, STEP and others via ImportGui.export
                     if ext in ("stl", "3mf"):
                         Mesh.export(export_obj_list, export_path)
                     else:
                         ImportGui.export(export_obj_list, export_path)
 
-                    App.Console.PrintMessage("Exportiert: %s\n" % export_path)
+                    App.Console.PrintMessage("Exported: %s\n" % export_path)
                 except Exception as e:
                     App.Console.PrintError(
-                        "Exportfehler (%s) bei '%s': %s\n"
+                        "Export error (%s) for '%s': %s\n"
                         % (export_ext, export_path, e)
                     )
 
-        # Fortschrittsdialog abschließen
+        # Finish the progress dialog
         if not preview and progress is not None:
             progress.setValue(len(rows_to_process))
 
         if not preview:
             QtWidgets.QMessageBox.information(
                 self.form,
-                "Fertig",
-                "Texte wurden erzeugt, extrudiert und exportiert.\n"
-                "Boolean-Fuse ggf. mit Zielkörper ausgeführt.",
+                "Done",
+                "Text bodies were generated, extruded, and exported.\n"
+                "Boolean fuse executed with target body when selected.",
             )
         else:
-            App.Console.PrintMessage("Preview aktualisiert.\n")
+            App.Console.PrintMessage("Preview updated.\n")
 
-        # nach finalem Lauf alle Modelländerungen verwerfen → Ursprungszustand
+        # After the final run discard model changes to restore the original state
         if not preview:
             try:
                 self.doc.abortTransaction()
@@ -722,14 +721,8 @@ class TextFromCSVTaskPanel:
 
 class CSV2ObjectsCmd:
     def GetResources(self):
-        # Icon-Pfad für das Kommando (Toolbar/Menu)
-        base_dir = os.path.join(
-            App.getUserAppDataDir(),
-            "Mod",
-            "CSV2Objects",
-            "resources",
-            "icons",
-        )
+        # Icon path for the command (toolbar/menu)
+        base_dir = os.path.join(os.path.dirname(__file__), "resources", "icons")
         svg_path = os.path.join(base_dir, "CSV2Objects.svg")
         png_path = os.path.join(base_dir, "CSV2Objects.png")
 
@@ -742,7 +735,7 @@ class CSV2ObjectsCmd:
         return {
             "MenuText": "CSV2Objects",
             "ToolTip": (
-                "Erzeugt massenhaft 3D-Objekte mit Text aus CSV-Dateien."
+                "Generate large batches of 3D objects with text from CSV files."
             ),
             "Pixmap": pixmap,
         }
@@ -751,17 +744,11 @@ class CSV2ObjectsCmd:
         return App.ActiveDocument is not None
 
     def Activated(self):
-        """Wird beim Klick auf das Toolbar-/Menü-Icon ausgeführt.
-
-        Öffnet einen neuen CSV2Objects-TaskPanel.
-        """
-        panel = TextFromCSVTaskPanel()
+        """Runs when the toolbar/menu icon is clicked. Opens a new CSV2Objects task panel."""
+        panel = CSV2ObjectsTaskPanel()
         Gui.Control.showDialog(panel)
 
 
 def register_commands():
-    """
-    Registriert die CSV2Objects-Kommandos bei FreeCAD.
-    Wird von InitGui.py aufgerufen.
-    """
+    """Register CSV2Objects commands in FreeCAD (called from InitGui.py)."""
     Gui.addCommand("CSV2Objects_Run", CSV2ObjectsCmd())

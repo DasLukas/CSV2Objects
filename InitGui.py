@@ -2,20 +2,29 @@ import os
 import FreeCAD as App
 import FreeCADGui as Gui
 
+# Log load to help diagnose workbench visibility
+App.Console.PrintMessage("CSV2Objects: InitGui.py loaded.\n")
+
 
 class CSV2ObjectsWorkbench(Gui.Workbench):
     """
-    Workbench für CSV2Objects.
-    Stellt ein Kommando 'CSV2Objects_Run' in Toolbar und Menü bereit.
+    Workbench for CSV2Objects.
+    Provides a 'CSV2Objects_Run' command in the toolbar and menu.
     """
 
     MenuText = "CSV2Objects"
-    ToolTip = "Erzeuge massenhaft 3D-Objekte mit Text aus CSV-Dateien."
+    ToolTip = "Generate large batches of 3D objects with text from CSV files."
 
     def __init__(self):
-        # Icon: zuerst SVG, dann PNG versuchen
-        # Basisverzeichnis über den Mod-Pfad ermitteln (CSV2Objects liegt unter Mod/CSV2Objects)
-        base_dir = os.path.join(App.getUserAppDataDir(), "Mod", "CSV2Objects")
+        # Icon: prefer SVG, then fall back to PNG
+        # Robust base directory resolution (some FreeCAD contexts may not define __file__)
+        try:
+            base_dir = os.path.dirname(__file__)
+        except Exception:
+            # Fallback: user Mod path
+            base_dir = os.path.join(App.getUserAppDataDir(), "Mod", "CSV2Objects")
+
+        base_dir = os.path.abspath(base_dir)
         icon_dir = os.path.join(base_dir, "resources", "icons")
         svg_path = os.path.join(icon_dir, "CSV2Objects.svg")
         png_path = os.path.join(icon_dir, "CSV2Objects.png")
@@ -28,18 +37,22 @@ class CSV2ObjectsWorkbench(Gui.Workbench):
             self.Icon = ""
 
     def Initialize(self):
-        # CSV2Objects-GUI-Modul importieren (lokaler Import, um Initialisierungsprobleme zu vermeiden)
-        import CSV2ObjectsGui
-        # Kommandos registrieren
+        # Import CSV2Objects GUI module (local import to avoid init issues)
+        try:
+            import CSV2ObjectsGui
+        except Exception as e:
+            App.Console.PrintError("CSV2Objects: failed to import CSV2ObjectsGui: %s\n" % e)
+            raise
+        # Register commands
         CSV2ObjectsGui.register_commands()
 
         cmd_list = ["CSV2Objects_Run"]
 
-        # Toolbar und Menü hinzufügen
+        # Add toolbar and menu
         self.appendToolbar("CSV2Objects", cmd_list)
         self.appendMenu("CSV2Objects", cmd_list)
 
-        App.Console.PrintMessage("CSV2ObjectsWorkbench: initialisiert.\n")
+        App.Console.PrintMessage("CSV2ObjectsWorkbench: initialized.\n")
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"

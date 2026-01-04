@@ -1,5 +1,5 @@
 # CSV2Objects - Init
-# Wird von FreeCAD beim Laden des Moduls ausgeführt
+# Executed by FreeCAD when the module is loaded
 
 __title__ = "CSV2Objects"
 __author__ = "Lukas Waschul"
@@ -8,4 +8,4 @@ __date__ = "2025-12-09"
 
 import FreeCAD as App
 
-App.Console.PrintMessage("CSV2Objects: Modul geladen.\n")
+App.Console.PrintMessage("CSV2Objects: module loaded.\n")
