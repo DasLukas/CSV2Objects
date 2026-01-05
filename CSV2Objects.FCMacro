@@ -67,7 +67,7 @@ class CSV2ObjectsTaskPanel:
         # -------------------------------------------------
         # CSV settings
         # -------------------------------------------------
-        csv_group = QtWidgets.QGroupBox("CSV settings")
+        csv_group = QtWidgets.QGroupBox("CSV Settings")
         csv_layout = QtWidgets.QGridLayout(csv_group)
 
         self.csv_path_edit = QtWidgets.QLineEdit()
@@ -106,9 +106,9 @@ class CSV2ObjectsTaskPanel:
         main_layout.addWidget(csv_group)
 
         # -------------------------------------------------
-        # Sketch / guide lines
+        # Sketch / CSV Mapping
         # -------------------------------------------------
-        sketch_group = QtWidgets.QGroupBox("Sketch & guide lines")
+        sketch_group = QtWidgets.QGroupBox("Sketch / CSV Mapping")
         sketch_layout = QtWidgets.QVBoxLayout(sketch_group)
 
         hl1 = QtWidgets.QHBoxLayout()
@@ -137,7 +137,7 @@ class CSV2ObjectsTaskPanel:
         # -------------------------------------------------
         # Text / extrusion / boolean / live preview
         # -------------------------------------------------
-        geo_group = QtWidgets.QGroupBox("Text, extrusion & boolean")
+        geo_group = QtWidgets.QGroupBox("Text & Extrusion Settings")
         geo_layout = QtWidgets.QGridLayout(geo_group)
 
         # System fonts
@@ -183,7 +183,7 @@ class CSV2ObjectsTaskPanel:
         except Exception:
             pass
 
-        geo_layout.addWidget(QtWidgets.QLabel("System font:"), 0, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("System Font:"), 0, 0)
         geo_layout.addWidget(self.system_font_combo, 0, 1, 1, 2)
 
         # Custom font file
@@ -208,7 +208,7 @@ class CSV2ObjectsTaskPanel:
         self.font_scale_spin.setSingleStep(0.05)
         self.font_scale_spin.setValue(0.7)
 
-        geo_layout.addWidget(QtWidgets.QLabel("FONT_SCALE (relative height):"), 2, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Font Scale (Relative Height):"), 2, 0)
         geo_layout.addWidget(self.font_scale_spin, 2, 1)
 
         # Extrusion height
@@ -217,7 +217,7 @@ class CSV2ObjectsTaskPanel:
         self.extrude_height_spin.setSingleStep(0.1)
         self.extrude_height_spin.setValue(1.0)
 
-        geo_layout.addWidget(QtWidgets.QLabel("Extrusion height [mm]:"), 3, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Extrusion Height [mm]:"), 3, 0)
         geo_layout.addWidget(self.extrude_height_spin, 3, 1)
 
         # Boolean mode (final only)
@@ -227,11 +227,11 @@ class CSV2ObjectsTaskPanel:
             "Fuse with target body"
         ])
 
-        geo_layout.addWidget(QtWidgets.QLabel("Mode (final only):"), 4, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Extrusion Mode:"), 4, 0)
         geo_layout.addWidget(self.boolean_mode_combo, 4, 1)
 
         self.target_body_combo = QtWidgets.QComboBox()
-        geo_layout.addWidget(QtWidgets.QLabel("Target body (for fuse):"), 5, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Target Body (Only for Fuse Mode):"), 5, 0)
         geo_layout.addWidget(self.target_body_combo, 5, 1, 1, 2)
 
         # (moved) Live preview checkbox will be created near the navigator
@@ -242,7 +242,7 @@ class CSV2ObjectsTaskPanel:
         self.export_format_combo.addItem("3MF", "3mf")
         self.export_format_combo.addItem("STEP", "step")
 
-        geo_layout.addWidget(QtWidgets.QLabel("Export format:"), 7, 0)
+        geo_layout.addWidget(QtWidgets.QLabel("Export Format:"), 7, 0)
         geo_layout.addWidget(self.export_format_combo, 7, 1)
 
         main_layout.addWidget(geo_group)
