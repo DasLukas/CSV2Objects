@@ -1,4 +1,53 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Byte-compiled / optimized / DLL files
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.sublime-*
+*.swp
+*~
+
+# macOS
 .DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# FreeCAD files (binary documents, auto-saves)
+# Typically not tracked in macro projects; keep only macros/scripts in git
 *.FCStd
+*.fcstd
+*.FCStd_autosave
+# Example file for testing purposes
+!keychain_template.FCStd
+
+# FreeCAD local caches / temporary
+.FreeCAD/
+
+# Python test / cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+htmlcov/
+
+# packaging
+pip-wheel-metadata/
