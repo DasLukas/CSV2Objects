@@ -295,6 +295,8 @@ class CSV2ObjectsTaskPanel:
         self.sketch_combo.currentIndexChanged.connect(self.on_sketch_changed)
         self.font_scale_spin.valueChanged.connect(self.maybe_trigger_preview)
         self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
+        # Trigger preview when an item's checkbox in the lines table changes
+        self.lines_table.itemChanged.connect(self.on_lines_table_item_changed)
         
 
         # Create preview/adopt checkboxes above navigator
@@ -704,6 +706,22 @@ class CSV2ObjectsTaskPanel:
         # Do not create or commit objects when toggling the adopt checkbox.
         # Adoption is performed only when the user confirms with OK.
         return
+
+    def on_lines_table_item_changed(self, item):
+        """Called when a QTableWidgetItem in the lines table changes.
+        When the 'Active' checkbox (column 0) is toggled, update the live preview.
+        """
+        try:
+            if item is None:
+                return
+            if item.column() == 0:
+                # checkbox changed: refresh preview if live preview enabled
+                try:
+                    self.maybe_trigger_preview()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     # ---------- Export helpers ----------
 
