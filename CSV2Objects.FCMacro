@@ -124,10 +124,10 @@ class CSV2ObjectsTaskPanel:
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
-        # Columns: Active, Geo index, Y, CSV column, Align, Size, Auto-fit
-        self.lines_table.setColumnCount(7)
+        # Columns: Active, Geo index, Y, CSV column, Align, Size, Extrude, Auto-fit
+        self.lines_table.setColumnCount(8)
         self.lines_table.setHorizontalHeaderLabels(
-            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Auto-fit"]
+            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Extrude [mm]", "Auto-fit"]
         )
         self.lines_table.horizontalHeader().setStretchLastSection(True)
         self.lines_table.setEditTriggers(QtWidgets.QAbstractItemView.AllEditTriggers)
@@ -203,23 +203,9 @@ class CSV2ObjectsTaskPanel:
         except Exception:
             pass
 
-        # FONT_SCALE
-        self.font_scale_spin = QtWidgets.QDoubleSpinBox()
-        self.font_scale_spin.setRange(0.05, 5.0)
-        self.font_scale_spin.setSingleStep(0.05)
-        self.font_scale_spin.setValue(0.7)
-
-        geo_layout.addWidget(QtWidgets.QLabel("Font Scale (Relative Height):"), 2, 0)
-        geo_layout.addWidget(self.font_scale_spin, 2, 1)
-
-        # Extrusion height
-        self.extrude_height_spin = QtWidgets.QDoubleSpinBox()
-        self.extrude_height_spin.setRange(0.01, 50.0)
-        self.extrude_height_spin.setSingleStep(0.1)
-        self.extrude_height_spin.setValue(1.0)
-
-        geo_layout.addWidget(QtWidgets.QLabel("Extrusion Height [mm]:"), 3, 0)
-        geo_layout.addWidget(self.extrude_height_spin, 3, 1)
+        # Note: per-guideline text height and extrusion height are set
+        # per-line in the Guide Lines table. Global font scale and global
+        # extrusion height controls were removed in favor of per-line values.
 
         # Boolean mode (final only)
         self.boolean_mode_combo = QtWidgets.QComboBox()
@@ -294,8 +280,7 @@ class CSV2ObjectsTaskPanel:
         # when the sketch selection changes, automatically scan guide lines
         # and update the preview
         self.sketch_combo.currentIndexChanged.connect(self.on_sketch_changed)
-        self.font_scale_spin.valueChanged.connect(self.maybe_trigger_preview)
-        self.extrude_height_spin.valueChanged.connect(self.maybe_trigger_preview)
+        # preview is triggered by per-line widget changes (align/size/auto)
         # Trigger preview when an item's checkbox in the lines table changes
         self.lines_table.itemChanged.connect(self.on_lines_table_item_changed)
         
@@ -509,8 +494,7 @@ class CSV2ObjectsTaskPanel:
             self.system_font_combo,
             self.font_path_edit,
             self.font_browse_btn,
-            self.font_scale_spin,
-            self.extrude_height_spin,
+            # per-line controls used instead of global font/extrude
             self.boolean_mode_combo,
             self.target_body_combo,
             self.preview_check,
@@ -588,7 +572,13 @@ class CSV2ObjectsTaskPanel:
                 except Exception:
                     pass
                 try:
-                    auto_item = self.lines_table.item(row, 6)
+                    extrude_widget = self.lines_table.cellWidget(row, 6)
+                    if isinstance(extrude_widget, QtWidgets.QDoubleSpinBox):
+                        extrude_widget.setValue(1.0)
+                except Exception:
+                    pass
+                try:
+                    auto_item = self.lines_table.item(row, 7)
                     if auto_item is not None:
                         auto_item.setCheckState(QtCore.Qt.Unchecked)
                 except Exception:
@@ -669,11 +659,18 @@ class CSV2ObjectsTaskPanel:
             size_spin.valueChanged.connect(self.maybe_trigger_preview)
             self.lines_table.setCellWidget(idx, 5, size_spin)
 
-            # Auto-fit checkbox (column 6) as a checkable table item
+            # Extrusion height spinbox per-line
+            extrude_spin = QtWidgets.QDoubleSpinBox()
+            extrude_spin.setRange(0.0, 1000.0)
+            extrude_spin.setSingleStep(0.1)
+            extrude_spin.setValue(1.0)
+            extrude_spin.valueChanged.connect(self.maybe_trigger_preview)
+            self.lines_table.setCellWidget(idx, 6, extrude_spin)
+            # Auto-fit checkbox (column 7) as a checkable table item
             auto_item = QtWidgets.QTableWidgetItem()
             auto_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             auto_item.setCheckState(QtCore.Qt.Unchecked)
-            self.lines_table.setItem(idx, 6, auto_item)
+            self.lines_table.setItem(idx, 7, auto_item)
 
         self.maybe_trigger_preview()
 
@@ -690,9 +687,10 @@ class CSV2ObjectsTaskPanel:
             col_combo = self.lines_table.cellWidget(r, 3)
             align_combo = self.lines_table.cellWidget(r, 4)
             size_widget = self.lines_table.cellWidget(r, 5)
-            auto_item = self.lines_table.item(r, 6)
+            extrude_widget = self.lines_table.cellWidget(r, 6)
+            auto_item = self.lines_table.item(r, 7)
 
-            if not item_geo or not item_y or not col_combo or not align_combo or size_widget is None or auto_item is None:
+            if not item_geo or not item_y or not col_combo or not align_combo or size_widget is None or extrude_widget is None or auto_item is None:
                 continue
 
             try:
@@ -719,6 +717,13 @@ class CSV2ObjectsTaskPanel:
             except Exception:
                 size_val = None
 
+            extrude_val = None
+            try:
+                if isinstance(extrude_widget, QtWidgets.QDoubleSpinBox):
+                    extrude_val = float(extrude_widget.value())
+            except Exception:
+                extrude_val = None
+
             auto_fit = False
             try:
                 if auto_item.checkState() == QtCore.Qt.Checked:
@@ -726,7 +731,7 @@ class CSV2ObjectsTaskPanel:
             except Exception:
                 auto_fit = False
 
-            mappings.append((geo_index, y_line, csv_col, align, auto_fit, size_val))
+            mappings.append((geo_index, y_line, csv_col, align, auto_fit, size_val, extrude_val))
 
         return mappings
 
@@ -794,8 +799,8 @@ class CSV2ObjectsTaskPanel:
         try:
             if item is None:
                 return
-            # Refresh preview when Active (col 0) or Auto-fit (col 6) checkboxes change
-            if item.column() in (0, 6):
+            # Refresh preview when Active (col 0) or Auto-fit (col 7) checkboxes change
+            if item.column() in (0, 7):
                 try:
                     self.maybe_trigger_preview()
                 except Exception:
@@ -886,8 +891,8 @@ class CSV2ObjectsTaskPanel:
         if sk is None:
             raise RuntimeError("Sketch object not found.")
 
-        font_scale = float(self.font_scale_spin.value())
-        extrude_h = float(self.extrude_height_spin.value())
+        # global font scale removed; use default fallback for relative sizing
+        font_scale = 0.7
         boolean_mode = self.boolean_mode_combo.currentIndex()
         target_body_name = self.target_body_combo.currentData()
         export_ext = self.export_format_combo.currentData() or "stl"
@@ -1033,12 +1038,12 @@ class CSV2ObjectsTaskPanel:
             self.doc.recompute()
             return ss
 
-        def extrude_text(ss_obj):
+        def extrude_text(ss_obj, extrude_h_local):
             if ss_obj is None:
                 return None
             ext = self.doc.addObject("Part::Extrusion", "TextExtrude")
             ext.Base = ss_obj
-            ext.Dir = App.Vector(0, 0, extrude_h)
+            ext.Dir = App.Vector(0, 0, float(extrude_h_local) if extrude_h_local is not None else 1.0)
             ext.Solid = True
             ext.TaperAngle = 0
             self.doc.recompute()
@@ -1088,14 +1093,15 @@ class CSV2ObjectsTaskPanel:
             )
             new_extrudes = []
 
-            for (geo_index, y_line, csv_col, align, auto_fit, size_val) in mappings:
+            for (geo_index, y_line, csv_col, align, auto_fit, size_val, extrude_val) in mappings:
                 if csv_col not in row:
                     continue
                 value = (row.get(csv_col) or "").strip()
                 # determine per-line size
                 per_size = size_val if size_val else text_size
                 ss = make_and_place_text(value, geo_index, y_line, align=align, auto_fit=auto_fit, size_val=per_size)
-                ext = extrude_text(ss)
+                per_extrude = extrude_val if extrude_val is not None else 1.0
+                ext = extrude_text(ss, per_extrude)
                 if ext:
                     new_extrudes.append(ext)
                     if preview:
@@ -1190,8 +1196,8 @@ class CSV2ObjectsTaskPanel:
         if sk is None:
             raise RuntimeError("Sketch object not found.")
 
-        font_scale = float(self.font_scale_spin.value())
-        extrude_h = float(self.extrude_height_spin.value())
+        # global font_scale/extrude removed; use fallback defaults
+        font_scale = 0.7
 
         bbox_sk = sk.Shape.BoundBox
         z_offset = float(bbox_sk.ZMin)
@@ -1287,25 +1293,26 @@ class CSV2ObjectsTaskPanel:
             self.doc.recompute()
             return ss
 
-        def extrude_text_local(ss_obj):
+        def extrude_text_local(ss_obj, extrude_h_local):
             if ss_obj is None:
                 return None
             ext = self.doc.addObject("Part::Extrusion", "TextExtrude")
             ext.Base = ss_obj
-            ext.Dir = App.Vector(0, 0, extrude_h)
+            ext.Dir = App.Vector(0, 0, float(extrude_h_local) if extrude_h_local is not None else 1.0)
             ext.Solid = True
             ext.TaperAngle = 0
             self.doc.recompute()
             return ext
 
         # create objects for the single row
-        for (geo_index, y_line, csv_col, align, auto_fit, size_val) in mappings:
+        for (geo_index, y_line, csv_col, align, auto_fit, size_val, extrude_val) in mappings:
             if csv_col not in row:
                 continue
             value = (row.get(csv_col) or "").strip()
             per_size = size_val if size_val else text_size
+            per_extrude = extrude_val if extrude_val is not None else 1.0
             ss = make_and_place_text_local(value, geo_index, y_line, align=align, auto_fit=auto_fit, size_val=per_size)
-            ext = extrude_text_local(ss)
+            ext = extrude_text_local(ss, per_extrude)
             if ext:
                 created.append(ss)
                 created.append(ext)
