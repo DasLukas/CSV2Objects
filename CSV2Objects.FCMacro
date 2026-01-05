@@ -124,11 +124,24 @@ class CSV2ObjectsTaskPanel:
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
-        # Columns: Active, Geo index, Y, CSV column, Align, Size, Extrude
+        # Columns (internally): Active, Geo index, Y, CSV column, Align, Size, Extrude
+        # Geo index and Y are kept as hidden internal columns for placement data
         self.lines_table.setColumnCount(7)
-        self.lines_table.setHorizontalHeaderLabels(
-            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Extrude [mm]"]
-        )
+        self.lines_table.setHorizontalHeaderLabels([
+            "Active",
+            "Geo index",
+            "Y",
+            "CSV column",
+            "Align",
+            "Height [mm]",
+            "Extrude [mm]",
+        ])
+        # hide internal placement columns from the user
+        try:
+            self.lines_table.setColumnHidden(1, True)
+            self.lines_table.setColumnHidden(2, True)
+        except Exception:
+            pass
         self.lines_table.horizontalHeader().setStretchLastSection(True)
         self.lines_table.setEditTriggers(QtWidgets.QAbstractItemView.AllEditTriggers)
         sketch_layout.addWidget(self.lines_table)
