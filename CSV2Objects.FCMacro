@@ -566,6 +566,13 @@ class CSV2ObjectsTaskPanel:
             if isinstance(combo, QtWidgets.QComboBox):
                 combo.clear()
                 combo.addItems(self.csv_headers)
+                # prefer matching successive columns for existing lines
+                try:
+                    if self.csv_headers:
+                        default_idx = min(row, max(0, len(self.csv_headers) - 1))
+                        combo.setCurrentIndex(default_idx)
+                except Exception:
+                    pass
 
         # Update navigator spinbox to reflect loaded CSV
         total_rows = len(self.csv_rows)
@@ -616,6 +623,14 @@ class CSV2ObjectsTaskPanel:
 
             col_combo = QtWidgets.QComboBox()
             col_combo.addItems(self.csv_headers)
+            # default mapping: when multiple guide lines exist, map them to
+            # successive CSV columns by default (clamped to header count)
+            try:
+                if self.csv_headers:
+                    default_idx = min(idx, max(0, len(self.csv_headers) - 1))
+                    col_combo.setCurrentIndex(default_idx)
+            except Exception:
+                pass
             col_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
             self.lines_table.setCellWidget(idx, 3, col_combo)
 
