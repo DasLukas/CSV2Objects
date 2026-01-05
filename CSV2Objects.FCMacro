@@ -124,9 +124,10 @@ class CSV2ObjectsTaskPanel:
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
-        self.lines_table.setColumnCount(4)
+        # Columns: Active, Geo index, Y, CSV column, Align, Size, Auto-fit
+        self.lines_table.setColumnCount(7)
         self.lines_table.setHorizontalHeaderLabels(
-            ["Active", "Geo index", "Y", "CSV column"]
+            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Auto-fit"]
         )
         self.lines_table.horizontalHeader().setStretchLastSection(True)
         self.lines_table.setEditTriggers(QtWidgets.QAbstractItemView.AllEditTriggers)
@@ -573,6 +574,25 @@ class CSV2ObjectsTaskPanel:
                         combo.setCurrentIndex(default_idx)
                 except Exception:
                     pass
+                # reset per-line alignment/size/auto to sensible defaults
+                try:
+                    align_combo = self.lines_table.cellWidget(row, 4)
+                    if isinstance(align_combo, QtWidgets.QComboBox):
+                        align_combo.setCurrentIndex(1)
+                except Exception:
+                    pass
+                try:
+                    size_widget = self.lines_table.cellWidget(row, 5)
+                    if isinstance(size_widget, QtWidgets.QDoubleSpinBox):
+                        size_widget.setValue(10.0)
+                except Exception:
+                    pass
+                try:
+                    auto_item = self.lines_table.item(row, 6)
+                    if auto_item is not None:
+                        auto_item.setCheckState(QtCore.Qt.Unchecked)
+                except Exception:
+                    pass
 
         # Update navigator spinbox to reflect loaded CSV
         total_rows = len(self.csv_rows)
@@ -634,6 +654,27 @@ class CSV2ObjectsTaskPanel:
             col_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
             self.lines_table.setCellWidget(idx, 3, col_combo)
 
+            # Alignment combobox: Left / Center / Right
+            align_combo = QtWidgets.QComboBox()
+            align_combo.addItems(["Left", "Center", "Right"])
+            align_combo.setCurrentIndex(1)
+            align_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
+            self.lines_table.setCellWidget(idx, 4, align_combo)
+
+            # Height spinbox (manual); value in mm relative to global scale
+            size_spin = QtWidgets.QDoubleSpinBox()
+            size_spin.setRange(0.01, 1000.0)
+            size_spin.setSingleStep(0.1)
+            size_spin.setValue(10.0)
+            size_spin.valueChanged.connect(self.maybe_trigger_preview)
+            self.lines_table.setCellWidget(idx, 5, size_spin)
+
+            # Auto-fit checkbox (column 6) as a checkable table item
+            auto_item = QtWidgets.QTableWidgetItem()
+            auto_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+            auto_item.setCheckState(QtCore.Qt.Unchecked)
+            self.lines_table.setItem(idx, 6, auto_item)
+
         self.maybe_trigger_preview()
 
     def get_line_mappings(self):
@@ -647,8 +688,11 @@ class CSV2ObjectsTaskPanel:
             item_geo = self.lines_table.item(r, 1)
             item_y = self.lines_table.item(r, 2)
             col_combo = self.lines_table.cellWidget(r, 3)
+            align_combo = self.lines_table.cellWidget(r, 4)
+            size_widget = self.lines_table.cellWidget(r, 5)
+            auto_item = self.lines_table.item(r, 6)
 
-            if not item_geo or not item_y or not col_combo:
+            if not item_geo or not item_y or not col_combo or not align_combo or size_widget is None or auto_item is None:
                 continue
 
             try:
@@ -661,7 +705,28 @@ class CSV2ObjectsTaskPanel:
             if not csv_col:
                 continue
 
-            mappings.append((geo_index, y_line, csv_col))
+            align = "Center"
+            try:
+                if isinstance(align_combo, QtWidgets.QComboBox):
+                    align = align_combo.currentText()
+            except Exception:
+                pass
+
+            size_val = None
+            try:
+                if isinstance(size_widget, QtWidgets.QDoubleSpinBox):
+                    size_val = float(size_widget.value())
+            except Exception:
+                size_val = None
+
+            auto_fit = False
+            try:
+                if auto_item.checkState() == QtCore.Qt.Checked:
+                    auto_fit = True
+            except Exception:
+                auto_fit = False
+
+            mappings.append((geo_index, y_line, csv_col, align, auto_fit, size_val))
 
         return mappings
 
@@ -729,8 +794,8 @@ class CSV2ObjectsTaskPanel:
         try:
             if item is None:
                 return
-            if item.column() == 0:
-                # checkbox changed: refresh preview if live preview enabled
+            # Refresh preview when Active (col 0) or Auto-fit (col 6) checkboxes change
+            if item.column() in (0, 6):
                 try:
                     self.maybe_trigger_preview()
                 except Exception:
@@ -846,7 +911,11 @@ class CSV2ObjectsTaskPanel:
         if not preview:
             export_dir, fc_name = self._get_export_base(export_ext)
             used_cols = []
-            for _, _, col in mappings:
+            for m in mappings:
+                try:
+                    col = m[2]
+                except Exception:
+                    continue
                 if col not in used_cols:
                     used_cols.append(col)
         else:
@@ -891,7 +960,7 @@ class CSV2ObjectsTaskPanel:
             self.preview_objects = []
             self.doc.recompute()
 
-        def make_and_place_text(value, geo_index, y_line):
+        def make_and_place_text(value, geo_index, y_line, align="Center", auto_fit=False, size_val=None):
             g = geos[geo_index]
             x1 = g.StartPoint.x
             x2 = g.EndPoint.x
@@ -899,11 +968,13 @@ class CSV2ObjectsTaskPanel:
 
             if not value:
                 return None
+            # determine initial size
+            initial_size = size_val if size_val and size_val > 0 else text_size
 
             ss = Draft.makeShapeString(
                 String=value,
                 FontFile=font_file,
-                Size=text_size,
+                Size=initial_size,
                 Tracking=0
             )
 
@@ -911,10 +982,51 @@ class CSV2ObjectsTaskPanel:
             self.doc.recompute()
 
             bbox = ss.Shape.BoundBox
-            width = float(bbox.XLength)
+            width = float(bbox.XLength) if bbox.XLength else 0.0
             ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
 
-            ss.Placement.Base.x = x_center - width / 2.0
+            line_len = abs(x2 - x1)
+            # auto-fit: recreate ShapeString with adjusted size to fit line length
+            if auto_fit and width > 1e-9 and line_len > 1e-6:
+                try:
+                    scale = (line_len * 0.95) / width
+                    if scale > 0 and abs(scale - 1.0) > 1e-3:
+                        new_size = max(0.01, initial_size * scale)
+                        # remove the provisional object
+                        try:
+                            if ss in self.doc.Objects:
+                                self.doc.removeObject(ss.Name)
+                        except Exception:
+                            pass
+                        self.doc.recompute()
+                        ss = Draft.makeShapeString(
+                            String=value,
+                            FontFile=font_file,
+                            Size=new_size,
+                            Tracking=0
+                        )
+                        ss.Placement.Base = App.Vector(x1, y_line, z_offset)
+                        self.doc.recompute()
+                        bbox = ss.Shape.BoundBox
+                        width = float(bbox.XLength) if bbox.XLength else 0.0
+                        ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
+                except Exception:
+                    pass
+
+            # Placement according to alignment
+            try:
+                if align.lower().startswith("l"):
+                    # anchor at the start point x
+                    base_x = x1
+                elif align.lower().startswith("r"):
+                    # anchor at the end point minus width
+                    base_x = x2 - width
+                else:
+                    base_x = x_center - width / 2.0
+            except Exception:
+                base_x = x_center - width / 2.0
+
+            ss.Placement.Base.x = base_x
             dy = y_line - ymid
             ss.Placement.Base.y += dy
 
@@ -976,11 +1088,13 @@ class CSV2ObjectsTaskPanel:
             )
             new_extrudes = []
 
-            for (geo_index, y_line, csv_col) in mappings:
+            for (geo_index, y_line, csv_col, align, auto_fit, size_val) in mappings:
                 if csv_col not in row:
                     continue
                 value = (row.get(csv_col) or "").strip()
-                ss = make_and_place_text(value, geo_index, y_line)
+                # determine per-line size
+                per_size = size_val if size_val else text_size
+                ss = make_and_place_text(value, geo_index, y_line, align=align, auto_fit=auto_fit, size_val=per_size)
                 ext = extrude_text(ss)
                 if ext:
                     new_extrudes.append(ext)
@@ -1105,7 +1219,7 @@ class CSV2ObjectsTaskPanel:
 
         created = []
 
-        def make_and_place_text_local(value, geo_index, y_line):
+        def make_and_place_text_local(value, geo_index, y_line, align="Center", auto_fit=False, size_val=None):
             g = geos[geo_index]
             x1 = g.StartPoint.x
             x2 = g.EndPoint.x
@@ -1114,10 +1228,12 @@ class CSV2ObjectsTaskPanel:
             if not value:
                 return None
 
+            initial_size = size_val if size_val and size_val > 0 else text_size
+
             ss = Draft.makeShapeString(
                 String=value,
                 FontFile=font_file,
-                Size=text_size,
+                Size=initial_size,
                 Tracking=0
             )
 
@@ -1125,10 +1241,46 @@ class CSV2ObjectsTaskPanel:
             self.doc.recompute()
 
             bbox = ss.Shape.BoundBox
-            width = float(bbox.XLength)
+            width = float(bbox.XLength) if bbox.XLength else 0.0
             ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
 
-            ss.Placement.Base.x = x_center - width / 2.0
+            line_len = abs(x2 - x1)
+            if auto_fit and width > 1e-9 and line_len > 1e-6:
+                try:
+                    scale = (line_len * 0.95) / width
+                    if scale > 0 and abs(scale - 1.0) > 1e-3:
+                        new_size = max(0.01, initial_size * scale)
+                        try:
+                            if ss in self.doc.Objects:
+                                self.doc.removeObject(ss.Name)
+                        except Exception:
+                            pass
+                        self.doc.recompute()
+                        ss = Draft.makeShapeString(
+                            String=value,
+                            FontFile=font_file,
+                            Size=new_size,
+                            Tracking=0
+                        )
+                        ss.Placement.Base = App.Vector(x1, y_line, z_offset)
+                        self.doc.recompute()
+                        bbox = ss.Shape.BoundBox
+                        width = float(bbox.XLength) if bbox.XLength else 0.0
+                        ymid = 0.5 * (float(bbox.YMin) + float(bbox.YMax))
+                except Exception:
+                    pass
+
+            try:
+                if align.lower().startswith("l"):
+                    base_x = x1
+                elif align.lower().startswith("r"):
+                    base_x = x2 - width
+                else:
+                    base_x = x_center - width / 2.0
+            except Exception:
+                base_x = x_center - width / 2.0
+
+            ss.Placement.Base.x = base_x
             dy = y_line - ymid
             ss.Placement.Base.y += dy
 
@@ -1147,11 +1299,12 @@ class CSV2ObjectsTaskPanel:
             return ext
 
         # create objects for the single row
-        for (geo_index, y_line, csv_col) in mappings:
+        for (geo_index, y_line, csv_col, align, auto_fit, size_val) in mappings:
             if csv_col not in row:
                 continue
             value = (row.get(csv_col) or "").strip()
-            ss = make_and_place_text_local(value, geo_index, y_line)
+            per_size = size_val if size_val else text_size
+            ss = make_and_place_text_local(value, geo_index, y_line, align=align, auto_fit=auto_fit, size_val=per_size)
             ext = extrude_text_local(ss)
             if ext:
                 created.append(ss)
