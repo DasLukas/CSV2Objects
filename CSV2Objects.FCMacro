@@ -124,10 +124,10 @@ class CSV2ObjectsTaskPanel:
         sketch_layout.addLayout(hl1)
 
         self.lines_table = QtWidgets.QTableWidget()
-        # Columns: Active, Geo index, Y, CSV column, Align, Size, Extrude, Auto-fit
-        self.lines_table.setColumnCount(8)
+        # Columns: Active, Geo index, Y, CSV column, Align, Size, Extrude
+        self.lines_table.setColumnCount(7)
         self.lines_table.setHorizontalHeaderLabels(
-            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Extrude [mm]", "Auto-fit"]
+            ["Active", "Geo index", "Y", "CSV column", "Align", "Height [mm]", "Extrude [mm]"]
         )
         self.lines_table.horizontalHeader().setStretchLastSection(True)
         self.lines_table.setEditTriggers(QtWidgets.QAbstractItemView.AllEditTriggers)
@@ -558,7 +558,7 @@ class CSV2ObjectsTaskPanel:
                         combo.setCurrentIndex(default_idx)
                 except Exception:
                     pass
-                # reset per-line alignment/size/auto to sensible defaults
+                # reset per-line alignment/size/extra to sensible defaults
                 try:
                     align_combo = self.lines_table.cellWidget(row, 4)
                     if isinstance(align_combo, QtWidgets.QComboBox):
@@ -577,10 +577,15 @@ class CSV2ObjectsTaskPanel:
                         extrude_widget.setValue(1.0)
                 except Exception:
                     pass
+                # ensure height is enabled by default (align not auto-fit)
                 try:
-                    auto_item = self.lines_table.item(row, 7)
-                    if auto_item is not None:
-                        auto_item.setCheckState(QtCore.Qt.Unchecked)
+                    align_combo = self.lines_table.cellWidget(row, 4)
+                    size_widget = self.lines_table.cellWidget(row, 5)
+                    if isinstance(align_combo, QtWidgets.QComboBox) and isinstance(size_widget, QtWidgets.QDoubleSpinBox):
+                        if "auto" in align_combo.currentText().lower():
+                            size_widget.setEnabled(False)
+                        else:
+                            size_widget.setEnabled(True)
                 except Exception:
                     pass
 
@@ -644,20 +649,12 @@ class CSV2ObjectsTaskPanel:
             col_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
             self.lines_table.setCellWidget(idx, 3, col_combo)
 
-            # Alignment combobox: Left / Center / Right
-            align_combo = QtWidgets.QComboBox()
-            align_combo.addItems(["Left", "Center", "Right"])
-            align_combo.setCurrentIndex(1)
-            align_combo.currentIndexChanged.connect(self.maybe_trigger_preview)
-            self.lines_table.setCellWidget(idx, 4, align_combo)
-
             # Height spinbox (manual); value in mm relative to global scale
             size_spin = QtWidgets.QDoubleSpinBox()
             size_spin.setRange(0.01, 1000.0)
             size_spin.setSingleStep(0.1)
             size_spin.setValue(10.0)
             size_spin.valueChanged.connect(self.maybe_trigger_preview)
-            self.lines_table.setCellWidget(idx, 5, size_spin)
 
             # Extrusion height spinbox per-line
             extrude_spin = QtWidgets.QDoubleSpinBox()
@@ -665,12 +662,34 @@ class CSV2ObjectsTaskPanel:
             extrude_spin.setSingleStep(0.1)
             extrude_spin.setValue(1.0)
             extrude_spin.valueChanged.connect(self.maybe_trigger_preview)
+
+            # Alignment combobox: Left / Center / Right / Auto-fit
+            align_combo = QtWidgets.QComboBox()
+            align_combo.addItems(["Left", "Center", "Right", "Auto-fit"])
+            align_combo.setCurrentIndex(1)
+            # when Auto-fit is selected, disable the manual Height spinbox
+            def _align_changed(i, spin=size_spin, combo=align_combo):
+                try:
+                    txt = combo.itemText(i).lower() if i >= 0 else combo.currentText().lower()
+                except Exception:
+                    txt = ""
+                is_auto = "auto" in txt
+                try:
+                    spin.setEnabled(not is_auto)
+                except Exception:
+                    pass
+                try:
+                    self.maybe_trigger_preview()
+                except Exception:
+                    pass
+
+            align_combo.currentIndexChanged.connect(_align_changed)
+
+            # attach widgets to the table in the correct columns
+            self.lines_table.setCellWidget(idx, 4, align_combo)
+            self.lines_table.setCellWidget(idx, 5, size_spin)
             self.lines_table.setCellWidget(idx, 6, extrude_spin)
-            # Auto-fit checkbox (column 7) as a checkable table item
-            auto_item = QtWidgets.QTableWidgetItem()
-            auto_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
-            auto_item.setCheckState(QtCore.Qt.Unchecked)
-            self.lines_table.setItem(idx, 7, auto_item)
+            # Auto-fit is an option inside the Align combobox; no separate checkbox
 
         self.maybe_trigger_preview()
 
@@ -688,9 +707,8 @@ class CSV2ObjectsTaskPanel:
             align_combo = self.lines_table.cellWidget(r, 4)
             size_widget = self.lines_table.cellWidget(r, 5)
             extrude_widget = self.lines_table.cellWidget(r, 6)
-            auto_item = self.lines_table.item(r, 7)
 
-            if not item_geo or not item_y or not col_combo or not align_combo or size_widget is None or extrude_widget is None or auto_item is None:
+            if not item_geo or not item_y or not col_combo or not align_combo or size_widget is None or extrude_widget is None:
                 continue
 
             try:
@@ -726,7 +744,7 @@ class CSV2ObjectsTaskPanel:
 
             auto_fit = False
             try:
-                if auto_item.checkState() == QtCore.Qt.Checked:
+                if isinstance(align_combo, QtWidgets.QComboBox) and "auto" in align_combo.currentText().lower():
                     auto_fit = True
             except Exception:
                 auto_fit = False
@@ -799,8 +817,8 @@ class CSV2ObjectsTaskPanel:
         try:
             if item is None:
                 return
-            # Refresh preview when Active (col 0) or Auto-fit (col 7) checkboxes change
-            if item.column() in (0, 7):
+            # Refresh preview when Active (col 0) checkbox changes
+            if item.column() == 0:
                 try:
                     self.maybe_trigger_preview()
                 except Exception:
